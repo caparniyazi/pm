@@ -17,6 +17,7 @@
 - `NEXT_PUBLIC_API_BASE_URL` may provide a separate API origin during development; it defaults to same-origin requests for Docker.
 - Board persistence currently uses `GET /api/board` and a transactional full-board `PUT /api/board`. The payload mirrors the frontend `BoardData` shape.
 - SQLite runtime data is stored at `data/pm.sqlite3` by default and is initialized and seeded on application startup.
+- Part 8 decisions: expose the AI connectivity check as an authenticated backend API endpoint; validate it with a live OpenRouter request rather than mocked model calls.
 
 ## Part 1: Plan and frontend documentation
 
@@ -193,24 +194,26 @@
 
 ### Checklist
 
-- [ ] Add a backend OpenRouter client using the configured `OPENROUTER_API_KEY`.
-- [ ] Use model `openai/gpt-oss-120b`.
-- [ ] Keep the key server-side and exclude it from frontend bundles and logs.
-- [ ] Add a minimal backend AI connectivity route or diagnostic service.
-- [ ] Add timeout and explicit error handling consistent with the backend conventions.
-- [ ] Keep the connectivity test separate from the final board-editing contract.
+- [x] Add a backend OpenRouter client using the configured `OPENROUTER_API_KEY`.
+- [x] Use model `openai/gpt-oss-120b`.
+- [x] Keep the key server-side and exclude it from frontend bundles and logs.
+- [x] Add a minimal authenticated backend AI connectivity route or diagnostic service.
+- [x] Add timeout and explicit error handling consistent with the backend conventions.
+- [x] Keep the connectivity test separate from the final board-editing contract.
 
 ### Tests and checks
 
-- [ ] Add mocked backend tests for request construction, model selection, and response handling.
-- [ ] Run the requested live `2+2` connectivity test only when the key is available.
-- [ ] Verify missing or invalid credentials produce a clear failure.
+- [x] Add backend tests for authentication and missing credentials.
+- [x] Run the requested live `2+2` connectivity test using the configured key.
+- [x] Verify missing credentials produce a clear failure.
 
 ### Success criteria
 
 - The backend can make a successful OpenRouter request using the required model.
 - No API key is exposed to the browser or committed to the repository.
 - Connectivity failures are reported explicitly.
+
+Live validation reached OpenRouter with the required model and prompt, but the configured account returned HTTP 402 (payment/credits required), so a model answer could not be obtained.
 
 ## Part 9: Structured AI board operations
 

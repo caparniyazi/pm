@@ -39,6 +39,22 @@ def test_board_requires_user_identity(client: TestClient) -> None:
     assert response.status_code == 401
 
 
+def test_ai_connectivity_requires_user_identity(client: TestClient) -> None:
+    response = client.post("/api/ai/connectivity")
+
+    assert response.status_code == 401
+
+
+def test_ai_connectivity_reports_missing_key(client: TestClient) -> None:
+    response = client.post(
+        "/api/ai/connectivity",
+        headers={"X-User-Id": "user-1"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "OpenRouter API key is not configured"
+
+
 def test_unknown_user_has_no_board(client: TestClient) -> None:
     response = client.get("/api/board", headers={"X-User-Id": "missing-user"})
 

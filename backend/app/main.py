@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from backend.app.config import settings
 from backend.app.database import initialize_database, read_board, replace_board
 from backend.app.models import BoardData
+from backend.app.openrouter import OpenRouterError, ask_openrouter
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -31,6 +32,18 @@ def current_user_id(x_user_id: str | None) -> str:
     if not x_user_id:
         raise HTTPException(status_code=401, detail="User identity is required")
     return x_user_id
+
+
+@app.post("/api/ai/connectivity")
+def ai_connectivity(x_user_id: str | None = Header(default=None)) -> dict[str, str]:
+    current_user_id(x_user_id)
+    if not settings.openrouter_api_key:
+        raise HTTPException(status_code=503, detail="OpenRouter API key is not configured")
+    try:
+        answer = ask_openrouter(settings.openrouter_api_key, "What is 2+2?")
+    except OpenRouterError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    return {"model": "openai/gpt-oss-120b", "answer": answer}
 
 
 @app.get("/api/board", response_model=BoardData)
