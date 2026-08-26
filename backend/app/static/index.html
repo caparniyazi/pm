@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Project Management MVP</title>
+  </head>
+  <body>
+    <main>
+      <h1>Project Management MVP</h1>
+      <p id="status">Checking the API...</p>
+    </main>
+    <script>
+      fetch("/api/hello")
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("API request failed");
+          }
+          return response.json();
+        })
+        .then((data) => {
+          document.querySelector("#status").textContent = data.message;
+        })
+        .catch(() => {
+          document.querySelector("#status").textContent = "API unavailable";
+        });
+    </script>
+  </body>
+</html>
