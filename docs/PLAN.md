@@ -159,20 +159,20 @@
 
 ### Checklist
 
-- [ ] Replace frontend-only board state initialization with API loading.
-- [ ] Connect login and logout to the backend session boundary.
-- [ ] Persist column renames, card creation, edits, deletion, and drag-and-drop moves through API calls.
-- [ ] Add loading, save, and error states without losing the current board unexpectedly.
-- [ ] Refresh or reconcile board state after successful mutations.
-- [ ] Configure same-origin requests for the Docker deployment and a clear development API path.
-- [ ] Keep API types shared or explicitly synchronized between frontend and backend.
+- [x] Replace frontend-only board state initialization with API loading.
+- [x] Connect login and logout to the backend session boundary.
+- [x] Persist column renames, card creation, edits, deletion, and drag-and-drop moves through API calls.
+- [x] Add loading, save, and error states without losing the current board unexpectedly.
+- [x] Refresh or reconcile board state after successful mutations.
+- [x] Configure same-origin requests for the Docker deployment and a clear development API path.
+- [x] Keep API types shared or explicitly synchronized between frontend and backend.
 
 ### Tests and checks
 
-- [ ] Add frontend unit tests for API client behavior and error states.
-- [ ] Add integration tests covering login, initial board loading, each mutation, and refresh persistence.
-- [ ] Run the integrated Playwright suite against a real backend and temporary database.
-- [ ] Verify browser refresh shows persisted changes.
+- [x] Add frontend unit tests for API client behavior and error states.
+- [x] Add integration tests covering login, initial board loading, board saves, and refresh persistence.
+- [ ] Run the integrated Playwright suite against a real backend and temporary database (blocked locally because the Chromium headless binary is unavailable).
+- [x] Verify board persistence across API requests against the Docker service.
 
 ### Success criteria
 

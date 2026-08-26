@@ -2,10 +2,14 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { AUTH_STORAGE_KEY, isValidCredentials } from "@/lib/auth";
+import { fetchBoard, saveBoard } from "@/lib/api";
+import type { BoardData } from "@/lib/kanban";
 import { KanbanBoard } from "@/components/KanbanBoard";
 
 export const AuthGate = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [board, setBoard] = useState<BoardData | null>(null);
+  const [boardError, setBoardError] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -13,12 +17,32 @@ export const AuthGate = () => {
   useEffect(() => {
     const isStoredAuthenticated =
       window.localStorage.getItem(AUTH_STORAGE_KEY) === "true";
-    const timer = window.setTimeout(
-      () => setIsAuthenticated(isStoredAuthenticated),
-      0
-    );
-    return () => window.clearTimeout(timer);
+    queueMicrotask(() => setIsAuthenticated(isStoredAuthenticated));
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated !== true) {
+      return;
+    }
+
+    let cancelled = false;
+    fetchBoard()
+      .then((loadedBoard) => {
+        if (!cancelled) {
+          setBoard(loadedBoard);
+          setBoardError("");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBoardError("Unable to load your board.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   const handleLogin = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -35,6 +59,8 @@ export const AuthGate = () => {
   const handleLogout = () => {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
     setIsAuthenticated(false);
+    setBoard(null);
+    setBoardError("");
     setUsername("");
     setPassword("");
   };
@@ -93,6 +119,37 @@ export const AuthGate = () => {
     );
   }
 
+  if (!board) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-6 py-12">
+        <section className="rounded-[32px] border border-[var(--stroke)] bg-white/90 p-8 text-center shadow-[var(--shadow)]">
+          <h1 className="font-display text-2xl font-semibold text-[var(--navy-dark)]">
+            {boardError || "Loading your board..."}
+          </h1>
+          {boardError ? (
+            <button
+              type="button"
+              onClick={() => setIsAuthenticated(false)}
+              className="mt-5 rounded-xl bg-[var(--secondary-purple)] px-4 py-3 font-semibold text-white"
+            >
+              Return to sign in
+            </button>
+          ) : null}
+        </section>
+      </main>
+    );
+  }
+
+  const handleBoardChange = async (nextBoard: BoardData) => {
+    try {
+      const savedBoard = await saveBoard(nextBoard);
+      setBoard(savedBoard);
+      setBoardError("");
+    } catch {
+      setBoardError("Unable to save that board change.");
+    }
+  };
+
   return (
     <>
       <div className="absolute right-6 top-6 z-10">
@@ -104,7 +161,12 @@ export const AuthGate = () => {
           Log out
         </button>
       </div>
-      <KanbanBoard />
+      {boardError ? (
+        <div className="fixed bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-xl bg-[var(--secondary-purple)] px-4 py-3 text-sm font-semibold text-white">
+          {boardError}
+        </div>
+      ) : null}
+      <KanbanBoard initialBoard={board} onBoardChange={handleBoardChange} />
     </>
   );
 };

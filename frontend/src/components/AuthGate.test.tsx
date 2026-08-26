@@ -2,10 +2,18 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AuthGate } from "@/components/AuthGate";
 import { AUTH_STORAGE_KEY } from "@/lib/auth";
+import { initialData } from "@/lib/kanban";
 
 describe("AuthGate", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    vi.spyOn(global, "fetch").mockImplementation(
+      async () => new Response(JSON.stringify(initialData), { status: 200 })
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("requires valid credentials before showing the board", async () => {
