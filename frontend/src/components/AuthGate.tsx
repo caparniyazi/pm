@@ -5,6 +5,7 @@ import { AUTH_STORAGE_KEY, isValidCredentials } from "@/lib/auth";
 import { fetchBoard, saveBoard } from "@/lib/api";
 import type { BoardData } from "@/lib/kanban";
 import { KanbanBoard } from "@/components/KanbanBoard";
+import { ChatSidebar } from "@/components/ChatSidebar";
 
 export const AuthGate = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -167,6 +168,7 @@ export const AuthGate = () => {
         </div>
       ) : null}
       <KanbanBoard initialBoard={board} onBoardChange={handleBoardChange} />
+      <ChatSidebar onBoardUpdate={setBoard} />
     </>
   );
 };

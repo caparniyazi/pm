@@ -9,7 +9,7 @@ from backend.app.config import settings
 from backend.app.ai import AIChatRequest, AIChatResponse, request_ai_response
 from backend.app.database import initialize_database, read_board, replace_board
 from backend.app.models import BoardData
-from backend.app.openrouter import OpenRouterError, ask_openrouter
+from backend.app.openrouter import MODEL, OpenRouterError, ask_openrouter
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -44,7 +44,7 @@ def ai_connectivity(x_user_id: str | None = Header(default=None)) -> dict[str, s
         answer = ask_openrouter(settings.openrouter_api_key, "What is 2+2?")
     except OpenRouterError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
-    return {"model": "openai/gpt-oss-120b", "answer": answer}
+    return {"model": MODEL, "answer": answer}
 
 
 @app.post("/api/ai/chat", response_model=AIChatResponse)

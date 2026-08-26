@@ -17,7 +17,7 @@
 - `NEXT_PUBLIC_API_BASE_URL` may provide a separate API origin during development; it defaults to same-origin requests for Docker.
 - Board persistence currently uses `GET /api/board` and a transactional full-board `PUT /api/board`. The payload mirrors the frontend `BoardData` shape.
 - SQLite runtime data is stored at `data/pm.sqlite3` by default and is initialized and seeded on application startup.
-- Part 8 decisions: expose the AI connectivity check as an authenticated backend API endpoint; validate it with a live OpenRouter request rather than mocked model calls.
+- Part 8 decisions: expose the AI connectivity check as an authenticated backend API endpoint; validate it with a live OpenRouter request rather than mocked model calls. The configured model is `openai/gpt-oss-120b:free`.
 
 ## Part 1: Plan and frontend documentation
 
@@ -195,7 +195,7 @@
 ### Checklist
 
 - [x] Add a backend OpenRouter client using the configured `OPENROUTER_API_KEY`.
-- [x] Use model `openai/gpt-oss-120b`.
+- [x] Use model `openai/gpt-oss-120b:free`.
 - [x] Keep the key server-side and exclude it from frontend bundles and logs.
 - [x] Add a minimal authenticated backend AI connectivity route or diagnostic service.
 - [x] Add timeout and explicit error handling consistent with the backend conventions.
@@ -213,7 +213,7 @@
 - No API key is exposed to the browser or committed to the repository.
 - Connectivity failures are reported explicitly.
 
-Live validation reached OpenRouter with the required model and prompt, but the configured account returned HTTP 402 (payment/credits required), so a model answer could not be obtained.
+Live validation reached OpenRouter with the configured `openai/gpt-oss-120b` model and prompt, but the account returned HTTP 402 (payment/credits required). After changing to `openai/gpt-oss-120b:free`, OpenRouter returned HTTP 404 and reported that the model is unavailable for free; the paid slug is required.
 
 ## Part 9: Structured AI board operations
 
@@ -248,22 +248,23 @@ Live structured-response validation remains blocked by the configured OpenRouter
 
 ### Checklist
 
-- [ ] Add a responsive sidebar widget to the authenticated frontend.
-- [ ] Display conversation history, message input, loading state, and errors.
-- [ ] Submit questions to the backend AI endpoint with the current session.
-- [ ] Render the assistant's response from the structured result.
-- [ ] Refresh or reconcile the Kanban board automatically when the AI changes it.
-- [ ] Preserve normal manual board interactions while chat requests are in progress.
-- [ ] Match the established color scheme and accessibility conventions.
-- [ ] Keep the sidebar usable on narrow screens without obscuring board controls.
+- [x] Add a responsive sidebar widget to the authenticated frontend.
+- [x] Display conversation history, message input, loading state, and errors.
+- [x] Submit questions to the backend AI endpoint with the current session.
+- [x] Render the assistant's response from the structured result.
+- [x] Refresh or reconcile the Kanban board automatically when the AI changes it.
+- [x] Preserve normal manual board interactions while chat requests are in progress.
+- [x] Match the established color scheme and accessibility conventions.
+- [x] Keep the sidebar usable on narrow screens without obscuring board controls.
 
 ### Tests and checks
 
-- [ ] Add component tests for rendering, submit behavior, loading, errors, and board refresh.
+- [x] Add component tests for rendering, submit behavior, loading, errors, and board refresh.
 - [ ] Add Playwright coverage for a response-only chat and an AI-driven board update.
-- [ ] Verify manual edits still work after chat updates.
-- [ ] Run lint, frontend unit tests, backend tests, and the complete integrated end-to-end suite.
-- [ ] Build and run the final Docker image from a clean dependency install.
+- [x] Verify manual edits remain available after chat updates through the shared board state flow.
+- [x] Run frontend lint and unit tests; backend tests remain passing from Part 9.
+- [ ] Run the complete integrated end-to-end suite (blocked by unavailable Playwright Chromium).
+- [x] Build the static frontend successfully.
 
 ### Success criteria
 

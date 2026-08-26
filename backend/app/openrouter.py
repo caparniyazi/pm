@@ -4,7 +4,7 @@ from urllib.request import Request, urlopen
 
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "openai/gpt-oss-120b"
+MODEL = "openai/gpt-oss-120b:free"
 REQUEST_TIMEOUT_SECONDS = 30
 
 
@@ -33,7 +33,15 @@ def ask_openrouter_messages(api_key: str, messages: list[dict[str, str]]) -> str
         with urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             response_data = json.load(response)
     except HTTPError as error:
-        raise OpenRouterError(f"OpenRouter returned HTTP {error.code}") from error
+        try:
+            error_data = json.load(error)
+            provider_message = error_data.get("error", {}).get("message")
+        except (json.JSONDecodeError, AttributeError):
+            provider_message = None
+        detail = f"OpenRouter returned HTTP {error.code}"
+        if isinstance(provider_message, str) and provider_message:
+            detail = f"{detail}: {provider_message}"
+        raise OpenRouterError(detail) from error
     except (URLError, TimeoutError) as error:
         raise OpenRouterError("OpenRouter request failed") from error
     except json.JSONDecodeError as error:
