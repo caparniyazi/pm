@@ -9,6 +9,15 @@
 - [ ] Record decisions and schema changes in `docs/`.
 - [ ] Do not add credentials, generated databases, or build output to source control.
 
+## Current implementation decisions
+
+- The frontend uses a static Next.js export, served by FastAPI from the same origin in Docker.
+- The MVP login state is stored in browser localStorage under `pm-authenticated`; it is a local demo gate, not production authentication.
+- Frontend API requests use `X-User-Id: user-1` as the temporary backend session boundary. The backend requires this header and scopes board access to that user.
+- `NEXT_PUBLIC_API_BASE_URL` may provide a separate API origin during development; it defaults to same-origin requests for Docker.
+- Board persistence currently uses `GET /api/board` and a transactional full-board `PUT /api/board`. The payload mirrors the frontend `BoardData` shape.
+- SQLite runtime data is stored at `data/pm.sqlite3` by default and is initialized and seeded on application startup.
+
 ## Part 1: Plan and frontend documentation
 
 ### Checklist
@@ -114,13 +123,13 @@
 - [x] Define serialization boundaries for API payloads and database records.
 - [x] Save the proposed schema as JSON in `docs/database-schema.json`.
 - [x] Document database location, creation behavior, initialization, and migration expectations.
-- [ ] Obtain user sign-off on the schema before implementing persistence.
+- [x] Obtain user sign-off on the schema before implementing persistence.
 
 ### Tests and checks
 
-- [ ] Validate the schema JSON parses and contains all required entities and relationships.
-- [ ] Test creation of a new database from an empty path.
-- [ ] Test constraints for user ownership, ordering, and duplicate board creation.
+- [x] Validate the schema JSON parses and contains all required entities and relationships.
+- [x] Test creation of a new database from an empty path.
+- [x] Test constraints for user ownership, ordering, and duplicate board creation.
 
 ### Success criteria
 
@@ -135,7 +144,7 @@
 - [x] Initialize SQLite tables when the database does not exist.
 - [x] Add the MVP authentication/session boundary used by API requests.
 - [x] Add routes to read the signed-in user's board.
-- [x] Add routes to update board data, column names, cards, and card ordering.
+- [x] Add a transactional full-board route to update board data, column names, cards, and card ordering.
 - [x] Enforce that a user can access and modify only their own board.
 - [x] Validate request payloads and return explicit HTTP errors for invalid operations.
 - [x] Preserve ordering and transactional consistency when moving, creating, editing, or deleting cards.
