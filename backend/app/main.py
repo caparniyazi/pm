@@ -1,19 +1,57 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi import Header, HTTPException
 from fastapi.responses import FileResponse
 
+from backend.app.config import settings
+from backend.app.database import initialize_database, read_board, replace_board
+from backend.app.models import BoardData
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 FRONTEND_DIR = BASE_DIR.parent.parent / "frontend" / "out"
 
-app = FastAPI(title="Project Management MVP")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    initialize_database(settings.database_path)
+    yield
+
+
+app = FastAPI(title="Project Management MVP", lifespan=lifespan)
 
 
 @app.get("/api/hello")
 def hello() -> dict[str, str]:
     return {"message": "Hello from the Project Management API"}
+
+
+def current_user_id(x_user_id: str | None) -> str:
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="User identity is required")
+    return x_user_id
+
+
+@app.get("/api/board", response_model=BoardData)
+def get_board(x_user_id: str | None = Header(default=None)) -> BoardData:
+    user_id = current_user_id(x_user_id)
+    board = read_board(settings.database_path, user_id)
+    if board is None:
+        raise HTTPException(status_code=404, detail="Board not found")
+    return board
+
+
+@app.put("/api/board", response_model=BoardData)
+def update_board(
+    board_data: BoardData,
+    x_user_id: str | None = Header(default=None),
+) -> BoardData:
+    user_id = current_user_id(x_user_id)
+    try:
+        return replace_board(settings.database_path, user_id, board_data)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 if FRONTEND_DIR.is_dir():

@@ -1,0 +1,168 @@
+{
+  "database": {
+    "engine": "sqlite",
+    "filename": "data/pm.sqlite3",
+    "foreign_keys": true,
+    "journal_mode": "WAL"
+  },
+  "tables": {
+    "users": {
+      "purpose": "Application users; supports more users when authentication is expanded.",
+      "columns": {
+        "id": {
+          "type": "TEXT",
+          "nullable": false,
+          "primary_key": true
+        },
+        "username": {
+          "type": "TEXT",
+          "nullable": false,
+          "unique": true
+        },
+        "created_at": {
+          "type": "TEXT",
+          "nullable": false,
+          "format": "ISO-8601 UTC timestamp"
+        }
+      }
+    },
+    "boards": {
+      "purpose": "One Kanban board per user for the MVP.",
+      "columns": {
+        "id": {
+          "type": "TEXT",
+          "nullable": false,
+          "primary_key": true
+        },
+        "user_id": {
+          "type": "TEXT",
+          "nullable": false,
+          "references": "users.id",
+          "on_delete": "CASCADE",
+          "unique": true
+        },
+        "title": {
+          "type": "TEXT",
+          "nullable": false
+        },
+        "created_at": {
+          "type": "TEXT",
+          "nullable": false,
+          "format": "ISO-8601 UTC timestamp"
+        },
+        "updated_at": {
+          "type": "TEXT",
+          "nullable": false,
+          "format": "ISO-8601 UTC timestamp"
+        }
+      }
+    },
+    "columns": {
+      "purpose": "Ordered board stages whose titles can be renamed.",
+      "columns": {
+        "id": {
+          "type": "TEXT",
+          "nullable": false,
+          "primary_key": true
+        },
+        "board_id": {
+          "type": "TEXT",
+          "nullable": false,
+          "references": "boards.id",
+          "on_delete": "CASCADE"
+        },
+        "title": {
+          "type": "TEXT",
+          "nullable": false
+        },
+        "position": {
+          "type": "INTEGER",
+          "nullable": false,
+          "minimum": 0
+        }
+      },
+      "constraints": [
+        "UNIQUE(board_id, position)"
+      ]
+    },
+    "cards": {
+      "purpose": "Cards contained by a board column and ordered within that column.",
+      "columns": {
+        "id": {
+          "type": "TEXT",
+          "nullable": false,
+          "primary_key": true
+        },
+        "column_id": {
+          "type": "TEXT",
+          "nullable": false,
+          "references": "columns.id",
+          "on_delete": "CASCADE"
+        },
+        "title": {
+          "type": "TEXT",
+          "nullable": false
+        },
+        "details": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": ""
+        },
+        "position": {
+          "type": "INTEGER",
+          "nullable": false,
+          "minimum": 0
+        },
+        "created_at": {
+          "type": "TEXT",
+          "nullable": false,
+          "format": "ISO-8601 UTC timestamp"
+        },
+        "updated_at": {
+          "type": "TEXT",
+          "nullable": false,
+          "format": "ISO-8601 UTC timestamp"
+        }
+      },
+      "constraints": [
+        "UNIQUE(column_id, position)"
+      ]
+    }
+  },
+  "relationships": [
+    "users 1-to-1 boards",
+    "boards 1-to-many columns",
+    "columns 1-to-many cards"
+  ],
+  "board_payload": {
+    "columns": [
+      {
+        "id": "column-id",
+        "title": "Column title",
+        "cardIds": [
+          "card-id"
+        ]
+      }
+    ],
+    "cards": {
+      "card-id": {
+        "id": "card-id",
+        "title": "Card title",
+        "details": "Card details"
+      }
+    }
+  },
+  "invariants": [
+    "Every board belongs to exactly one user.",
+    "A user has at most one board.",
+    "Every column belongs to exactly one board.",
+    "Every card belongs to exactly one column.",
+    "Positions are zero-based and unique within their parent.",
+    "The API returns columns ordered by position and cards ordered by position.",
+    "Board mutations update updated_at and are committed atomically."
+  ],
+  "mvp_seed": {
+    "username": "user",
+    "board": "Create the five demo columns and existing demo cards for the MVP user when no board exists."
+  }
+}

@@ -108,12 +108,12 @@
 
 ### Checklist
 
-- [ ] Define a SQLite schema supporting multiple users and one board per user for the MVP.
-- [ ] Model users, boards, columns, cards, and card ordering with stable identifiers.
-- [ ] Define ownership and uniqueness constraints, including one board per user.
-- [ ] Define serialization boundaries for API payloads and database records.
-- [ ] Save the proposed schema as JSON in `docs/`.
-- [ ] Document database location, creation behavior, initialization, and migration expectations.
+- [x] Define a SQLite schema supporting multiple users and one board per user for the MVP.
+- [x] Model users, boards, columns, cards, and card ordering with stable identifiers.
+- [x] Define ownership and uniqueness constraints, including one board per user.
+- [x] Define serialization boundaries for API payloads and database records.
+- [x] Save the proposed schema as JSON in `docs/database-schema.json`.
+- [x] Document database location, creation behavior, initialization, and migration expectations.
 - [ ] Obtain user sign-off on the schema before implementing persistence.
 
 ### Tests and checks
@@ -132,22 +132,22 @@
 
 ### Checklist
 
-- [ ] Initialize SQLite tables when the database does not exist.
-- [ ] Add the MVP authentication/session boundary used by API requests.
-- [ ] Add routes to read the signed-in user's board.
-- [ ] Add routes to update board data, column names, cards, and card ordering.
-- [ ] Enforce that a user can access and modify only their own board.
-- [ ] Validate request payloads and return explicit HTTP errors for invalid operations.
-- [ ] Preserve ordering and transactional consistency when moving, creating, editing, or deleting cards.
-- [ ] Seed the initial board for the MVP user when no board exists.
+- [x] Initialize SQLite tables when the database does not exist.
+- [x] Add the MVP authentication/session boundary used by API requests.
+- [x] Add routes to read the signed-in user's board.
+- [x] Add routes to update board data, column names, cards, and card ordering.
+- [x] Enforce that a user can access and modify only their own board.
+- [x] Validate request payloads and return explicit HTTP errors for invalid operations.
+- [x] Preserve ordering and transactional consistency when moving, creating, editing, or deleting cards.
+- [x] Seed the initial board for the MVP user when no board exists.
 
 ### Tests and checks
 
-- [ ] Add backend unit tests for database initialization and seed data.
-- [ ] Test successful board reads and each supported mutation.
-- [ ] Test invalid payloads, missing entities, unauthorized access, and ownership boundaries.
-- [ ] Test persistence across application/database connections.
-- [ ] Run the backend test suite against a temporary SQLite database.
+- [x] Add backend unit tests for database initialization and seed data.
+- [x] Test successful board reads and each supported mutation.
+- [x] Test invalid payloads, missing entities, unauthorized access, and ownership boundaries.
+- [x] Test persistence across application/database connections.
+- [x] Run the backend test suite against a temporary SQLite database.
 
 ### Success criteria
 
