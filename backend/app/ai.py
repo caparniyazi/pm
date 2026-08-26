@@ -1,0 +1,208 @@
+import json
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, Field, ValidationError
+
+from backend.app.models import BoardData, Card
+from backend.app.openrouter import ask_openrouter_messages
+
+
+MAX_HISTORY_MESSAGES = 20
+MAX_MESSAGE_LENGTH = 4000
+
+
+class ConversationMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=MAX_MESSAGE_LENGTH)
+
+
+class AIChatRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=MAX_MESSAGE_LENGTH)
+    history: list[ConversationMessage] = Field(
+        default_factory=list, max_length=MAX_HISTORY_MESSAGES
+    )
+
+
+class CreateCardOperation(BaseModel):
+    kind: Literal["create_card"]
+    card_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    details: str = ""
+    column_id: str = Field(min_length=1)
+    position: int = Field(default=-1, ge=-1)
+
+
+class EditCardOperation(BaseModel):
+    kind: Literal["edit_card"]
+    card_id: str = Field(min_length=1)
+    title: str | None = None
+    details: str | None = None
+
+
+class MoveCardOperation(BaseModel):
+    kind: Literal["move_card"]
+    card_id: str = Field(min_length=1)
+    column_id: str = Field(min_length=1)
+    position: int = Field(default=-1, ge=-1)
+
+
+class DeleteCardOperation(BaseModel):
+    kind: Literal["delete_card"]
+    card_id: str = Field(min_length=1)
+
+
+class RenameColumnOperation(BaseModel):
+    kind: Literal["rename_column"]
+    column_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+
+
+BoardOperation = Annotated[
+    CreateCardOperation
+    | EditCardOperation
+    | MoveCardOperation
+    | DeleteCardOperation
+    | RenameColumnOperation,
+    Field(discriminator="kind"),
+]
+
+
+class BoardUpdate(BaseModel):
+    operations: list[BoardOperation] = Field(min_length=1)
+
+
+class StructuredAIResponse(BaseModel):
+    assistant_response: str = Field(min_length=1)
+    board_update: BoardUpdate | None = None
+
+
+class AIChatResponse(StructuredAIResponse):
+    board: BoardData
+
+
+def build_messages(board: BoardData, request: AIChatRequest) -> list[dict[str, str]]:
+    system = (
+        "You are a project management assistant. Return only valid JSON with this "
+        'shape: {"assistant_response": string, "board_update": '
+        '{"operations": [...] } or null}. Allowed operation kinds are '
+        "create_card, edit_card, move_card, delete_card, and rename_column. "
+        "For positions, use -1 to append. Use existing IDs for edits, moves, "
+        "deletes, and column renames. New card IDs must be unique."
+    )
+    context = json.dumps(
+        {
+            "current_board": board.model_dump(by_alias=True),
+            "question": request.question,
+            "conversation_history": [
+                message.model_dump() for message in request.history
+            ],
+        }
+    )
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": context},
+    ]
+
+
+def parse_ai_response(raw_response: str) -> StructuredAIResponse:
+    try:
+        parsed = json.loads(raw_response)
+        return StructuredAIResponse.model_validate(parsed)
+    except (json.JSONDecodeError, ValidationError, TypeError) as error:
+        raise ValueError("AI response was not valid structured JSON") from error
+
+
+def apply_board_update(board: BoardData, update: BoardUpdate) -> BoardData:
+    next_board = board.model_copy(deep=True)
+    for operation in update.operations:
+        if isinstance(operation, CreateCardOperation):
+            _create_card(next_board, operation)
+        elif isinstance(operation, EditCardOperation):
+            _edit_card(next_board, operation)
+        elif isinstance(operation, MoveCardOperation):
+            _move_card(next_board, operation)
+        elif isinstance(operation, DeleteCardOperation):
+            _delete_card(next_board, operation)
+        else:
+            _rename_column(next_board, operation)
+    return next_board
+
+
+def _column(board: BoardData, column_id: str):
+    column = next((item for item in board.columns if item.id == column_id), None)
+    if column is None:
+        raise ValueError(f"Column not found: {column_id}")
+    return column
+
+
+def _insert_card(column, card_id: str, position: int) -> None:
+    insert_at = len(column.cardIds) if position == -1 else min(position, len(column.cardIds))
+    column.cardIds.insert(insert_at, card_id)
+
+
+def _create_card(board: BoardData, operation: CreateCardOperation) -> None:
+    if operation.card_id in board.cards:
+        raise ValueError(f"Card already exists: {operation.card_id}")
+    column = _column(board, operation.column_id)
+    board.cards[operation.card_id] = Card(
+        id=operation.card_id,
+        title=operation.title,
+        details=operation.details,
+    )
+    _insert_card(column, operation.card_id, operation.position)
+
+
+def _edit_card(board: BoardData, operation: EditCardOperation) -> None:
+    card = board.cards.get(operation.card_id)
+    if card is None:
+        raise ValueError(f"Card not found: {operation.card_id}")
+    if operation.title is None and operation.details is None:
+        raise ValueError("Card edit must change title or details")
+    if operation.title is not None:
+        if not operation.title:
+            raise ValueError("Card title cannot be empty")
+        card.title = operation.title
+    if operation.details is not None:
+        card.details = operation.details
+
+
+def _move_card(board: BoardData, operation: MoveCardOperation) -> None:
+    if operation.card_id not in board.cards:
+        raise ValueError(f"Card not found: {operation.card_id}")
+    target = _column(board, operation.column_id)
+    for column in board.columns:
+        if operation.card_id in column.cardIds:
+            column.cardIds.remove(operation.card_id)
+            break
+    _insert_card(target, operation.card_id, operation.position)
+
+
+def _delete_card(board: BoardData, operation: DeleteCardOperation) -> None:
+    if operation.card_id not in board.cards:
+        raise ValueError(f"Card not found: {operation.card_id}")
+    del board.cards[operation.card_id]
+    for column in board.columns:
+        if operation.card_id in column.cardIds:
+            column.cardIds.remove(operation.card_id)
+            return
+
+
+def _rename_column(board: BoardData, operation: RenameColumnOperation) -> None:
+    _column(board, operation.column_id).title = operation.title
+
+
+def request_ai_response(
+    api_key: str, board: BoardData, request: AIChatRequest
+) -> AIChatResponse:
+    raw_response = ask_openrouter_messages(api_key, build_messages(board, request))
+    response = parse_ai_response(raw_response)
+    updated_board = (
+        apply_board_update(board, response.board_update)
+        if response.board_update is not None
+        else board
+    )
+    return AIChatResponse(
+        assistant_response=response.assistant_response,
+        board_update=response.board_update,
+        board=updated_board,
+    )

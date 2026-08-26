@@ -6,6 +6,7 @@ from fastapi import Header, HTTPException
 from fastapi.responses import FileResponse
 
 from backend.app.config import settings
+from backend.app.ai import AIChatRequest, AIChatResponse, request_ai_response
 from backend.app.database import initialize_database, read_board, replace_board
 from backend.app.models import BoardData
 from backend.app.openrouter import OpenRouterError, ask_openrouter
@@ -44,6 +45,28 @@ def ai_connectivity(x_user_id: str | None = Header(default=None)) -> dict[str, s
     except OpenRouterError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
     return {"model": "openai/gpt-oss-120b", "answer": answer}
+
+
+@app.post("/api/ai/chat", response_model=AIChatResponse)
+def ai_chat(
+    request: AIChatRequest,
+    x_user_id: str | None = Header(default=None),
+) -> AIChatResponse:
+    user_id = current_user_id(x_user_id)
+    board = read_board(settings.database_path, user_id)
+    if board is None:
+        raise HTTPException(status_code=404, detail="Board not found")
+    if not settings.openrouter_api_key:
+        raise HTTPException(status_code=503, detail="OpenRouter API key is not configured")
+    try:
+        response = request_ai_response(settings.openrouter_api_key, board, request)
+        if response.board_update is not None:
+            response.board = replace_board(settings.database_path, user_id, response.board)
+        return response
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except OpenRouterError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
 
 
 @app.get("/api/board", response_model=BoardData)

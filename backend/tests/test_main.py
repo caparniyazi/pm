@@ -55,6 +55,27 @@ def test_ai_connectivity_reports_missing_key(client: TestClient) -> None:
     assert response.json()["detail"] == "OpenRouter API key is not configured"
 
 
+def test_ai_chat_reports_missing_key(client: TestClient) -> None:
+    response = client.post(
+        "/api/ai/chat",
+        headers={"X-User-Id": "user-1"},
+        json={"question": "Summarize my board"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "OpenRouter API key is not configured"
+
+
+def test_ai_chat_does_not_access_another_users_board(client: TestClient) -> None:
+    response = client.post(
+        "/api/ai/chat",
+        headers={"X-User-Id": "missing-user"},
+        json={"question": "Summarize my board"},
+    )
+
+    assert response.status_code == 404
+
+
 def test_unknown_user_has_no_board(client: TestClient) -> None:
     response = client.get("/api/board", headers={"X-User-Id": "missing-user"})
 

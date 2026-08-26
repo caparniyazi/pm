@@ -12,11 +12,11 @@ class OpenRouterError(Exception):
     pass
 
 
-def ask_openrouter(api_key: str, prompt: str) -> str:
+def ask_openrouter_messages(api_key: str, messages: list[dict[str, str]]) -> str:
     payload = json.dumps(
         {
             "model": MODEL,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
         }
     ).encode("utf-8")
     request = Request(
@@ -46,3 +46,10 @@ def ask_openrouter(api_key: str, prompt: str) -> str:
     if not isinstance(content, str) or not content:
         raise OpenRouterError("OpenRouter response contained an empty message")
     return content
+
+
+def ask_openrouter(api_key: str, prompt: str) -> str:
+    return ask_openrouter_messages(
+        api_key,
+        [{"role": "user", "content": prompt}],
+    )

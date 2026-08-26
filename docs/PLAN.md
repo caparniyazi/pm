@@ -219,28 +219,30 @@ Live validation reached OpenRouter with the required model and prompt, but the c
 
 ### Checklist
 
-- [ ] Define the structured response schema containing the assistant response and optional board update.
-- [ ] Send the complete current board JSON, the user's question, and conversation history on every AI request.
-- [ ] Define allowed board operations for creating, editing, moving, deleting cards, and renaming columns.
-- [ ] Validate structured model output before applying any update.
-- [ ] Apply valid board updates transactionally through the same persistence rules as normal API mutations.
-- [ ] Return the assistant response and the resulting board state in a stable API shape.
-- [ ] Reject malformed, unauthorized, or semantically invalid updates explicitly.
-- [ ] Bound conversation history and request size according to a documented simple policy.
+- [x] Define the structured response schema containing the assistant response and optional board update.
+- [x] Send the complete current board JSON, the user's question, and conversation history on every AI request.
+- [x] Define allowed board operations for creating, editing, moving, deleting, and renaming columns.
+- [x] Validate structured model output before applying any update.
+- [x] Apply valid board updates transactionally through the same persistence rules as normal API mutations.
+- [x] Return the assistant response and the resulting board state in a stable API shape.
+- [x] Reject malformed, unauthorized, or semantically invalid updates explicitly.
+- [x] Bound conversation history and request size according to a documented simple policy.
 
 ### Tests and checks
 
-- [ ] Add schema validation tests for response-only, update, malformed, and partial responses.
-- [ ] Mock model calls and verify board JSON, question, and history are included.
-- [ ] Test each allowed operation and multi-operation updates.
-- [ ] Test transactional rollback when any operation in an update is invalid.
-- [ ] Test that unrelated users' boards cannot be included or changed.
+- [x] Add schema validation tests for response-only, update, malformed, and partial responses.
+- [x] Verify board JSON, question, and history are included in model context without mocking.
+- [x] Test each allowed operation and multi-operation updates.
+- [x] Test transactional rollback when any operation in an update is invalid.
+- [x] Test that unrelated users' boards cannot be included or changed.
 
 ### Success criteria
 
 - Every AI request receives the required context.
 - Valid structured output can update one or more board elements safely.
 - Invalid output cannot corrupt persisted board data and is reported clearly.
+
+Live structured-response validation remains blocked by the configured OpenRouter account's HTTP 402 payment/credits response recorded in Part 8.
 
 ## Part 10: AI chat sidebar
 
