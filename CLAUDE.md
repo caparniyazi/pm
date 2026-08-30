@@ -70,7 +70,7 @@ The `BoardData` structure is defined twice and must match:
 - Frontend: `frontend/src/lib/kanban.ts` (types + `initialData` + pure ops `moveCard`, `createId`).
 
 Shape: `{ columns: [{ id, title, cardIds: string[] }], cards: { [id]: { id, title, details } } }`. `cardIds` is the ordering; `cards` is a lookup map. Note the camelCase `cardIds` crosses the wire as-is (pydantic field is literally `cardIds`).
-
+    
 ### AI chat
 
 `POST /api/ai/chat` (`main.py` -> `backend/app/ai.py`): sends the full current board JSON, the question, and bounded history (`MAX_HISTORY_MESSAGES=20`, `MAX_MESSAGE_LENGTH=4000`) to OpenRouter via `backend/app/openrouter.py` (stdlib `urllib`, 30s timeout, model `openai/gpt-oss-120b:free`).
