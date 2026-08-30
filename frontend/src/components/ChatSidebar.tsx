@@ -8,6 +8,9 @@ type ChatSidebarProps = {
   onBoardUpdate: (board: BoardData) => void;
 };
 
+// The backend rejects histories longer than this, so only send the recent tail.
+const HISTORY_LIMIT = 20;
+
 export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
@@ -29,7 +32,10 @@ export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
     setIsLoading(true);
 
     try {
-      const response = await askAI(trimmedQuestion, messages);
+      const response = await askAI(
+        trimmedQuestion,
+        messages.slice(-HISTORY_LIMIT)
+      );
       setMessages((current) => [
         ...current,
         { role: "assistant", content: response.assistant_response },

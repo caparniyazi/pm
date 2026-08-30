@@ -130,7 +130,7 @@ export const AuthGate = () => {
           {boardError ? (
             <button
               type="button"
-              onClick={() => setIsAuthenticated(false)}
+              onClick={handleLogout}
               className="mt-5 rounded-xl bg-[var(--secondary-purple)] px-4 py-3 font-semibold text-white"
             >
               Return to sign in
@@ -146,8 +146,9 @@ export const AuthGate = () => {
       const savedBoard = await saveBoard(nextBoard);
       setBoard(savedBoard);
       setBoardError("");
-    } catch {
+    } catch (error) {
       setBoardError("Unable to save that board change.");
+      throw error; // let KanbanBoard roll back its optimistic state
     }
   };
 

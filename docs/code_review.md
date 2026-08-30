@@ -343,33 +343,33 @@ fragile on a slow machine. `retries: 1` in the config absorbs most flakes.
 
 ## Prioritized action checklist
 
-High:
-- [ ] B1 Close SQLite connections.
-- [ ] B2 Request JSON mode from OpenRouter and tolerate code fences.
-- [ ] B3 Make the model configurable; document that AI needs credits.
-- [ ] F1 Trim chat history to the last 20 messages before sending.
-- [ ] F2 Optimistic board updates in controlled mode; debounce column rename.
-- [ ] I1 Untrack `.idea/`; ignore it.
-- [ ] I2 Untrack `frontend/test-results/`; ignore it.
-- [ ] I3 Commit `uv.lock`; build with `--locked`.
-- [ ] T1 Test the AI update-and-persist path (success and rollback).
+High (all done 2026-08-30):
+- [x] B1 Close SQLite connections.
+- [x] B2 Request JSON mode from OpenRouter and tolerate code fences.
+- [x] B3 Make the model configurable; document that AI needs credits.
+- [x] F1 Trim chat history to the last 20 messages before sending.
+- [x] F2 Optimistic board updates in controlled mode; debounce column rename.
+- [x] I1 Untrack `.idea/`; ignore it.
+- [x] I2 Untrack `frontend/test-results/`; ignore it.
+- [x] I3 Commit `uv.lock`; build with `--locked`.
+- [x] T1 Test the AI update-and-persist path (success and rollback).
 
-Medium:
-- [ ] S1 Document the "no auth, local only" security model.
-- [ ] B4 Re-read the board before applying an AI update.
-- [ ] B5 Preserve or remove `created_at` / `updated_at`.
-- [ ] B6 Enable WAL or fix the docs.
-- [ ] B7 Enforce rename-only columns on `PUT /api/board`.
-- [ ] F3 Clear the auth session on the board-load error path.
-- [ ] F4 Add card editing to the UI.
-- [ ] F5 Add `KeyboardSensor` or scope out keyboard DnD.
-- [ ] I4 Ignore `data/` and `*.sqlite3*`.
-- [ ] I5 Non-root container user; compose healthcheck and restart policy.
-- [ ] I6 Add CI.
-- [ ] T2 Contract test for the shared `BoardData` shape.
-- [ ] T3 Per-operation API tests for AI board ops.
+Medium (all done 2026-08-30):
+- [x] S1 Document the "no auth, local only" security model.
+- [x] B4 Re-read the board before applying an AI update.
+- [x] B5 Preserve or remove `created_at` / `updated_at`.
+- [x] B6 Enable WAL or fix the docs.
+- [x] B7 Enforce rename-only columns on `PUT /api/board`.
+- [x] F3 Clear the auth session on the board-load error path.
+- [x] F4 Add card editing to the UI.
+- [x] F5 Add `KeyboardSensor` or scope out keyboard DnD.
+- [x] I4 Ignore `data/` and `*.sqlite3*`.
+- [x] I5 Non-root container user; compose healthcheck and restart policy.
+- [x] I6 Add CI.
+- [x] T2 Contract test for the shared `BoardData` shape.
+- [x] T3 Per-operation API tests for AI board ops.
 
-Low:
+Low (not addressed):
 - [ ] S2 Gate `/api/ai/connectivity` behind a debug flag.
 - [ ] B8 JSON 404 for unknown `/api/*`.
 - [ ] B9 Return a re-read board from `PUT`.

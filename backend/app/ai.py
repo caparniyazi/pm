@@ -91,7 +91,7 @@ def build_messages(board: BoardData, request: AIChatRequest) -> list[dict[str, s
     )
     context = json.dumps(
         {
-            "current_board": board.model_dump(by_alias=True),
+            "current_board": board.model_dump(),
             "question": request.question,
             "conversation_history": [
                 message.model_dump() for message in request.history
@@ -104,9 +104,18 @@ def build_messages(board: BoardData, request: AIChatRequest) -> list[dict[str, s
     ]
 
 
+def _strip_code_fence(raw_response: str) -> str:
+    text = raw_response.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[: -3]
+    return text.strip()
+
+
 def parse_ai_response(raw_response: str) -> StructuredAIResponse:
     try:
-        parsed = json.loads(raw_response)
+        parsed = json.loads(_strip_code_fence(raw_response))
         return StructuredAIResponse.model_validate(parsed)
     except (json.JSONDecodeError, ValidationError, TypeError) as error:
         raise ValueError("AI response was not valid structured JSON") from error
@@ -191,18 +200,13 @@ def _rename_column(board: BoardData, operation: RenameColumnOperation) -> None:
     _column(board, operation.column_id).title = operation.title
 
 
-def request_ai_response(
-    api_key: str, board: BoardData, request: AIChatRequest
-) -> AIChatResponse:
-    raw_response = ask_openrouter_messages(api_key, build_messages(board, request))
-    response = parse_ai_response(raw_response)
-    updated_board = (
-        apply_board_update(board, response.board_update)
-        if response.board_update is not None
-        else board
+def generate_structured_response(
+    api_key: str, model: str, board: BoardData, request: AIChatRequest
+) -> StructuredAIResponse:
+    raw_response = ask_openrouter_messages(
+        api_key,
+        model,
+        build_messages(board, request),
+        response_format={"type": "json_object"},
     )
-    return AIChatResponse(
-        assistant_response=response.assistant_response,
-        board_update=response.board_update,
-        board=updated_board,
-    )
+    return parse_ai_response(raw_response)

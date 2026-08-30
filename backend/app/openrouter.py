@@ -4,7 +4,6 @@ from urllib.request import Request, urlopen
 
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "openai/gpt-oss-120b:free"
 REQUEST_TIMEOUT_SECONDS = 30
 
 
@@ -12,13 +11,16 @@ class OpenRouterError(Exception):
     pass
 
 
-def ask_openrouter_messages(api_key: str, messages: list[dict[str, str]]) -> str:
-    payload = json.dumps(
-        {
-            "model": MODEL,
-            "messages": messages,
-        }
-    ).encode("utf-8")
+def ask_openrouter_messages(
+    api_key: str,
+    model: str,
+    messages: list[dict[str, str]],
+    response_format: dict | None = None,
+) -> str:
+    body: dict = {"model": model, "messages": messages}
+    if response_format is not None:
+        body["response_format"] = response_format
+    payload = json.dumps(body).encode("utf-8")
     request = Request(
         OPENROUTER_URL,
         data=payload,
@@ -56,8 +58,9 @@ def ask_openrouter_messages(api_key: str, messages: list[dict[str, str]]) -> str
     return content
 
 
-def ask_openrouter(api_key: str, prompt: str) -> str:
+def ask_openrouter(api_key: str, model: str, prompt: str) -> str:
     return ask_openrouter_messages(
         api_key,
+        model,
         [{"role": "user", "content": prompt}],
     )

@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
@@ -34,12 +35,23 @@ def connect(database_path: str) -> sqlite3.Connection:
     connection = sqlite3.connect(database_path)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA journal_mode = WAL")
     return connection
+
+
+@contextmanager
+def transaction(database_path: str) -> Iterator[sqlite3.Connection]:
+    connection = connect(database_path)
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
 
 
 def initialize_database(database_path: str) -> None:
     Path(database_path).parent.mkdir(parents=True, exist_ok=True)
-    with connect(database_path) as connection:
+    with transaction(database_path) as connection:
         connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -121,7 +133,7 @@ def seed_mvp_board(connection: sqlite3.Connection) -> None:
 
 
 def read_board(database_path: str, user_id: str) -> BoardData | None:
-    with connect(database_path) as connection:
+    with transaction(database_path) as connection:
         board = connection.execute(
             "SELECT id FROM boards WHERE user_id = ?", (user_id,)
         ).fetchone()
@@ -167,16 +179,37 @@ def read_board(database_path: str, user_id: str) -> BoardData | None:
 
 
 def replace_board(database_path: str, user_id: str, board_data: BoardData) -> BoardData:
-    with connect(database_path) as connection:
+    with transaction(database_path) as connection:
         board = connection.execute(
             "SELECT id FROM boards WHERE user_id = ?", (user_id,)
         ).fetchone()
         if board is None:
             raise ValueError("Board not found")
 
-        validate_board(board_data)
-        timestamp = now()
         board_id = board["id"]
+        existing_column_ids = {
+            row["id"]
+            for row in connection.execute(
+                "SELECT id FROM columns WHERE board_id = ?", (board_id,)
+            )
+        }
+        validate_board(board_data)
+        if existing_column_ids and {c.id for c in board_data.columns} != existing_column_ids:
+            raise ValueError("Board columns can be renamed but not added or removed")
+
+        created_at_by_card = {
+            row["id"]: row["created_at"]
+            for row in connection.execute(
+                """
+                SELECT cards.id, cards.created_at
+                FROM cards
+                JOIN columns ON columns.id = cards.column_id
+                WHERE columns.board_id = ?
+                """,
+                (board_id,),
+            )
+        }
+        timestamp = now()
         connection.execute("DELETE FROM cards WHERE column_id IN (SELECT id FROM columns WHERE board_id = ?)", (board_id,))
         connection.execute("DELETE FROM columns WHERE board_id = ?", (board_id,))
         for column_position, column in enumerate(board_data.columns):
@@ -186,13 +219,14 @@ def replace_board(database_path: str, user_id: str, board_data: BoardData) -> Bo
             )
             for card_position, card_id in enumerate(column.cardIds):
                 card = board_data.cards[card_id]
+                created_at = created_at_by_card.get(card.id, timestamp)
                 connection.execute(
                     """
                     INSERT INTO cards
                       (id, column_id, title, details, position, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (card.id, column.id, card.title, card.details, card_position, timestamp, timestamp),
+                    (card.id, column.id, card.title, card.details, card_position, created_at, timestamp),
                 )
         connection.execute(
             "UPDATE boards SET updated_at = ? WHERE id = ?", (timestamp, board_id)

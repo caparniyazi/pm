@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
@@ -11,6 +12,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
 import { createId, initialData, moveCard, type BoardData } from "@/lib/kanban";
@@ -20,25 +22,64 @@ type KanbanBoardProps = {
   onBoardChange?: (board: BoardData) => void | Promise<void>;
 };
 
+const RENAME_DEBOUNCE_MS = 400;
+
 export const KanbanBoard = ({
   initialBoard = initialData,
   onBoardChange,
 }: KanbanBoardProps) => {
-  const [localBoard, setLocalBoard] = useState<BoardData>(() => initialBoard);
+  const [board, setBoard] = useState<BoardData>(() => initialBoard);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
-  const board = onBoardChange ? initialBoard : localBoard;
+  const renameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const updateBoard = (nextBoard: BoardData) => {
-    if (onBoardChange) {
-      void onBoardChange(nextBoard);
-    } else {
-      setLocalBoard(nextBoard);
+  // Reconcile with the controlled source of truth (save echo, AI updates).
+  useEffect(() => {
+    setBoard(initialBoard);
+  }, [initialBoard]);
+
+  useEffect(
+    () => () => {
+      if (renameTimer.current) {
+        clearTimeout(renameTimer.current);
+      }
+    },
+    []
+  );
+
+  const persist = (nextBoard: BoardData) => {
+    if (!onBoardChange) {
+      return;
     }
+    Promise.resolve(onBoardChange(nextBoard)).catch(() => {
+      // Save failed: drop the optimistic change back to the confirmed board.
+      setBoard(initialBoard);
+    });
+  };
+
+  // Discrete actions (drag, add, delete, edit): apply now, persist now.
+  const commit = (nextBoard: BoardData) => {
+    setBoard(nextBoard);
+    persist(nextBoard);
+  };
+
+  // Column rename fires per keystroke: apply now, persist after a pause.
+  const commitRename = (nextBoard: BoardData) => {
+    setBoard(nextBoard);
+    if (!onBoardChange) {
+      return;
+    }
+    if (renameTimer.current) {
+      clearTimeout(renameTimer.current);
+    }
+    renameTimer.current = setTimeout(() => persist(nextBoard), RENAME_DEBOUNCE_MS);
   };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 
@@ -56,15 +97,14 @@ export const KanbanBoard = ({
       return;
     }
 
-    const nextBoard = {
+    commit({
       ...board,
       columns: moveCard(board.columns, active.id as string, over.id as string),
-    };
-    updateBoard(nextBoard);
+    });
   };
 
   const handleRenameColumn = (columnId: string, title: string) => {
-    updateBoard({
+    commitRename({
       ...board,
       columns: board.columns.map((column) =>
         column.id === columnId ? { ...column, title } : column
@@ -74,11 +114,11 @@ export const KanbanBoard = ({
 
   const handleAddCard = (columnId: string, title: string, details: string) => {
     const id = createId("card");
-    updateBoard({
+    commit({
       ...board,
       cards: {
         ...board.cards,
-        [id]: { id, title, details: details || "No details yet." },
+        [id]: { id, title, details },
       },
       columns: board.columns.map((column) =>
         column.id === columnId
@@ -88,19 +128,32 @@ export const KanbanBoard = ({
     });
   };
 
+  const handleEditCard = (cardId: string, title: string, details: string) => {
+    if (!board.cards[cardId]) {
+      return;
+    }
+    commit({
+      ...board,
+      cards: {
+        ...board.cards,
+        [cardId]: { ...board.cards[cardId], title, details },
+      },
+    });
+  };
+
   const handleDeleteCard = (columnId: string, cardId: string) => {
-    updateBoard({
+    commit({
       ...board,
       cards: Object.fromEntries(
         Object.entries(board.cards).filter(([id]) => id !== cardId)
       ),
       columns: board.columns.map((column) =>
-          column.id === columnId
-            ? {
-                ...column,
-                cardIds: column.cardIds.filter((id) => id !== cardId),
-              }
-            : column
+        column.id === columnId
+          ? {
+              ...column,
+              cardIds: column.cardIds.filter((id) => id !== cardId),
+            }
+          : column
       ),
     });
   };
@@ -163,6 +216,7 @@ export const KanbanBoard = ({
                 cards={column.cardIds.map((cardId) => board.cards[cardId])}
                 onRename={handleRenameColumn}
                 onAddCard={handleAddCard}
+                onEditCard={handleEditCard}
                 onDeleteCard={handleDeleteCard}
               />
             ))}

@@ -39,9 +39,9 @@ Full app (Docker):
 ./scripts/stop.sh             # docker compose down
 ```
 
-Requires `OPENROUTER_API_KEY` in the root `.env` (git-ignored). Open http://localhost:8000.
+Requires `OPENROUTER_API_KEY` in the root `.env` (git-ignored). Optional env: `OPENROUTER_MODEL` (default `openai/gpt-oss-120b`), `DATABASE_PATH` (default `data/pm.sqlite3`). Open http://localhost:8000.
 
-Playwright e2e has been blocked in this environment because the Chromium binary cannot be downloaded (recorded throughout `docs/PLAN.md`). Do not assume e2e ran; rely on vitest + pytest.
+Playwright e2e (`frontend/tests/`) drives the full stack, so `playwright.config.ts` starts the app with `docker compose up --build` and needs the root `.env`. It reuses an already-running container.
 
 ## Architecture
 
@@ -59,9 +59,9 @@ Playwright e2e has been blocked in this environment because the Chromium binary 
 
 ### Board persistence: full-board replace
 
-There is no per-card API. The whole board is read with `GET /api/board` and written with a single transactional `PUT /api/board`. `replace_board()` validates the payload (`validate_board`: unique column ids, every card referenced exactly once), then deletes all columns/cards for the board and reinserts them with zero-based `position` derived from array order. Column and card order is purely positional and always returned sorted by `position`.
+There is no per-card API. The whole board is read with `GET /api/board` and written with a single transactional `PUT /api/board`. `replace_board()` validates the payload (`validate_board`: unique column ids, every card referenced exactly once), enforces that the column id set is unchanged (rename only, no add/remove/re-id), then deletes all columns/cards for the board and reinserts them with zero-based `position` derived from array order. Each card's `created_at` is carried forward by id; `updated_at` is refreshed. Column and card order is purely positional and always returned sorted by `position`.
 
-SQLite lives at `data/pm.sqlite3` (`DATABASE_PATH` env override), created on demand, foreign keys ON. It is runtime data and must never be committed. `docker-compose.yml` persists it in the `app-data` volume.
+SQLite lives at `data/pm.sqlite3` (`DATABASE_PATH` env override), created on demand, foreign keys ON, WAL journal. Connections are opened and closed per request via the `transaction()` context manager in `database.py`. It is runtime data and must never be committed. `docker-compose.yml` persists it in the `app-data` volume.
 
 ### Shared board shape (keep in sync manually)
 
@@ -73,15 +73,15 @@ Shape: `{ columns: [{ id, title, cardIds: string[] }], cards: { [id]: { id, titl
     
 ### AI chat
 
-`POST /api/ai/chat` (`main.py` -> `backend/app/ai.py`): sends the full current board JSON, the question, and bounded history (`MAX_HISTORY_MESSAGES=20`, `MAX_MESSAGE_LENGTH=4000`) to OpenRouter via `backend/app/openrouter.py` (stdlib `urllib`, 30s timeout, model `openai/gpt-oss-120b:free`).
+`POST /api/ai/chat` (`main.py` -> `backend/app/ai.py`): sends the full current board JSON, the question, and bounded history (`MAX_HISTORY_MESSAGES=20`, `MAX_MESSAGE_LENGTH=4000`) to OpenRouter via `backend/app/openrouter.py` (stdlib `urllib`, 30s timeout, model from `settings.openrouter_model`, `response_format=json_object`). The frontend trims history to the last 20 messages before sending.
 
-The model must return strict JSON `{ assistant_response, board_update: { operations: [...] } | null }`. `parse_ai_response` validates it; `apply_board_update` applies operations (`create_card`, `edit_card`, `move_card`, `delete_card`, `rename_column`) to a deep copy, raising `ValueError` on any invalid reference. If `board_update` is present, the resulting board is persisted through the same `replace_board` path (same validation and transactionality as a manual `PUT`). The response returns `assistant_response`, `board_update`, and the final `board`.
+`generate_structured_response()` calls the model and `parse_ai_response()` validates the reply (a leading/trailing ```` ``` ```` fence is stripped first) into `{ assistant_response, board_update: { operations: [...] } | null }`. If `board_update` is present, `main.py` re-reads the board (so the update applies to current state, not the pre-request snapshot), runs `apply_board_update` (`create_card`, `edit_card`, `move_card`, `delete_card`, `rename_column`; any invalid reference raises `ValueError`), and persists via `replace_board` (same validation and single transaction as a manual `PUT`). The response returns `assistant_response`, `board_update`, and the final `board`.
 
 The API key stays server-side only (`backend/app/config.py` reads `OPENROUTER_API_KEY` from env). Missing key -> 503; OpenRouter failure -> 502; invalid AI output / invalid op -> 400.
 
 ### Frontend state flow
 
-`AuthGate.tsx` is the top-level orchestrator: it holds the `board` state, loads it after auth, and passes `initialBoard` + `onBoardChange` to `KanbanBoard`. `KanbanBoard` is dual-mode: with `onBoardChange` it is controlled (every edit calls back, which does `saveBoard` and stores the server's echo); without it, it manages local state (the standalone demo). `ChatSidebar` gets `onBoardUpdate={setBoard}` so an AI mutation refreshes the board in place. dnd-kit drives drag-and-drop; `moveCard` in `kanban.ts` is the pure reorder function.
+`AuthGate.tsx` is the top-level orchestrator: it holds the `board` state, loads it after auth, and passes `initialBoard` + `onBoardChange` to `KanbanBoard`. `KanbanBoard` always keeps a local `board` state (re-synced from `initialBoard`); edits apply optimistically and then call `onBoardChange`, which `saveBoard`s and, on failure, rejects so `KanbanBoard` rolls back to the last confirmed board. Column rename is debounced (`RENAME_DEBOUNCE_MS`). Without `onBoardChange` it is the standalone demo (local state only). `ChatSidebar` gets `onBoardUpdate={setBoard}` so an AI mutation refreshes the board in place. dnd-kit drives drag-and-drop (`PointerSensor` + `KeyboardSensor`); `moveCard` in `kanban.ts` is the pure reorder function.
 
 Preserve `data-testid` attributes in board markup (Playwright depends on them). Keep pure board logic in `src/lib/kanban.ts`; keep components using hooks/dnd-kit client-side (`"use client"`).
 

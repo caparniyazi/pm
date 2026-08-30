@@ -6,10 +6,15 @@ from fastapi import Header, HTTPException
 from fastapi.responses import FileResponse
 
 from backend.app.config import settings
-from backend.app.ai import AIChatRequest, AIChatResponse, request_ai_response
+from backend.app.ai import (
+    AIChatRequest,
+    AIChatResponse,
+    apply_board_update,
+    generate_structured_response,
+)
 from backend.app.database import initialize_database, read_board, replace_board
 from backend.app.models import BoardData
-from backend.app.openrouter import MODEL, OpenRouterError, ask_openrouter
+from backend.app.openrouter import OpenRouterError, ask_openrouter
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -41,10 +46,12 @@ def ai_connectivity(x_user_id: str | None = Header(default=None)) -> dict[str, s
     if not settings.openrouter_api_key:
         raise HTTPException(status_code=503, detail="OpenRouter API key is not configured")
     try:
-        answer = ask_openrouter(settings.openrouter_api_key, "What is 2+2?")
+        answer = ask_openrouter(
+            settings.openrouter_api_key, settings.openrouter_model, "What is 2+2?"
+        )
     except OpenRouterError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
-    return {"model": MODEL, "answer": answer}
+    return {"model": settings.openrouter_model, "answer": answer}
 
 
 @app.post("/api/ai/chat", response_model=AIChatResponse)
@@ -59,10 +66,26 @@ def ai_chat(
     if not settings.openrouter_api_key:
         raise HTTPException(status_code=503, detail="OpenRouter API key is not configured")
     try:
-        response = request_ai_response(settings.openrouter_api_key, board, request)
-        if response.board_update is not None:
-            response.board = replace_board(settings.database_path, user_id, response.board)
-        return response
+        structured = generate_structured_response(
+            settings.openrouter_api_key, settings.openrouter_model, board, request
+        )
+        if structured.board_update is None:
+            return AIChatResponse(
+                assistant_response=structured.assistant_response,
+                board_update=None,
+                board=board,
+            )
+        # Re-read so the update applies to current state, not the pre-request snapshot.
+        current_board = read_board(settings.database_path, user_id)
+        if current_board is None:
+            raise HTTPException(status_code=404, detail="Board not found")
+        updated_board = apply_board_update(current_board, structured.board_update)
+        saved_board = replace_board(settings.database_path, user_id, updated_board)
+        return AIChatResponse(
+            assistant_response=structured.assistant_response,
+            board_update=structured.board_update,
+            board=saved_board,
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     except OpenRouterError as error:

@@ -174,3 +174,13 @@ cython_debug/
 
 .DS_Store
 
+# IDE
+.idea/
+
+# Local runtime database
+data/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+

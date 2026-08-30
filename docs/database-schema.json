@@ -159,7 +159,9 @@
     "Every card belongs to exactly one column.",
     "Positions are zero-based and unique within their parent.",
     "The API returns columns ordered by position and cards ordered by position.",
-    "Board mutations update updated_at and are committed atomically."
+    "Board mutations update updated_at and are committed atomically.",
+    "The column set is fixed after seeding; columns may be renamed but not added, removed, or re-identified.",
+    "A full-board replace preserves each card's created_at, matched by card id."
   ],
   "mvp_seed": {
     "username": "user",

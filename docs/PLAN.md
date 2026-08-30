@@ -9,6 +9,29 @@
 - [ ] Record decisions and schema changes in `docs/`.
 - [ ] Do not add credentials, generated databases, or build output to source control.
 
+## Post-review remediation (2026-08-30)
+
+A full code review (`docs/code_review.md`) was actioned. Notable changes:
+
+- No authentication is by design for this local MVP. The backend trusts
+  `X-User-Id` and must not be exposed beyond localhost. See `README.md`.
+- SQLite connections are now closed after each request; WAL is enabled to match
+  the documented schema.
+- `PUT /api/board` now rejects payloads that add, remove, or re-id columns
+  (rename only).
+- Card `created_at` is preserved across full-board replaces; `updated_at` is
+  bumped.
+- The AI flow re-reads the board immediately before persisting a model update,
+  requests JSON mode from OpenRouter, and tolerates code-fenced JSON. The model
+  is configurable via `OPENROUTER_MODEL`.
+- Frontend: optimistic board updates with rollback on save failure, debounced
+  column rename, chat history trimmed to the last 20 messages, inline card
+  editing, keyboard drag sensor, and the board-load error path now clears the
+  session.
+- Added CI (`.github/workflows/ci.yml`); untracked `.idea/` and
+  `frontend/test-results/`; committed `uv.lock`; container runs as non-root with
+  a compose healthcheck.
+
 ## Current implementation decisions
 
 - The frontend uses a static Next.js export, served by FastAPI from the same origin in Docker.
