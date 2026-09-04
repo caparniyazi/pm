@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { askAI, type ChatMessage } from "@/lib/api";
 import type { BoardData } from "@/lib/kanban";
+import { ChatIcon, CloseIcon } from "@/components/icons";
 
 type ChatSidebarProps = {
   onBoardUpdate: (board: BoardData) => void;
@@ -57,8 +58,9 @@ export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-30 rounded-full bg-[var(--secondary-purple)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow)]"
+        className="fixed bottom-6 right-6 z-30 flex items-center gap-2 rounded-full bg-[var(--secondary-purple)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow)] transition hover:brightness-110"
       >
+        <ChatIcon className="h-4 w-4" />
         Open AI assistant
       </button>
     );
@@ -67,7 +69,7 @@ export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
   return (
     <aside
       aria-label="AI assistant"
-      className="fixed bottom-4 right-4 z-30 flex max-h-[calc(100vh-2rem)] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px] border border-[var(--stroke)] bg-white/95 shadow-[var(--shadow)] backdrop-blur lg:bottom-auto lg:right-6 lg:top-24"
+      className="fixed bottom-4 right-4 z-30 flex max-h-[calc(100vh-2rem)] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px] border border-[var(--stroke)] bg-white/95 shadow-[var(--shadow)] backdrop-blur lg:sticky lg:top-0 lg:right-0 lg:bottom-auto lg:h-screen lg:max-h-screen lg:w-[22rem] lg:shrink-0 lg:rounded-none lg:rounded-l-[32px] lg:border-y-0 lg:border-r-0"
     >
       <header className="flex items-center justify-between border-b border-[var(--stroke)] px-5 py-4">
         <div>
@@ -82,9 +84,9 @@ export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
           type="button"
           aria-label="Close AI assistant"
           onClick={() => setIsOpen(false)}
-          className="rounded-full px-3 py-1 text-lg text-[var(--gray-text)] hover:bg-[var(--surface)]"
+          className="rounded-full p-2 text-[var(--gray-text)] transition hover:bg-[var(--surface)] hover:text-[var(--navy-dark)]"
         >
-          ×
+          <CloseIcon className="h-4 w-4" />
         </button>
       </header>
 

@@ -153,7 +153,7 @@ export const AuthGate = () => {
   };
 
   return (
-    <>
+    <div className="flex min-h-screen w-full">
       <div className="absolute right-6 top-6 z-10">
         <button
           type="button"
@@ -168,8 +168,10 @@ export const AuthGate = () => {
           {boardError}
         </div>
       ) : null}
-      <KanbanBoard initialBoard={board} onBoardChange={handleBoardChange} />
+      <div className="min-w-0 flex-1">
+        <KanbanBoard initialBoard={board} onBoardChange={handleBoardChange} />
+      </div>
       <ChatSidebar onBoardUpdate={setBoard} />
-    </>
+    </div>
   );
 };

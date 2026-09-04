@@ -3,6 +3,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import clsx from "clsx";
 import type { Card } from "@/lib/kanban";
+import { PencilIcon, TrashIcon } from "@/components/icons";
 
 type KanbanCardProps = {
   card: Card;
@@ -101,25 +102,27 @@ export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
             {card.details}
           </p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={() => {
               setDraft({ title: card.title, details: card.details });
               setIsEditing(true);
             }}
-            className="rounded-full border border-transparent px-2 py-1 text-xs font-semibold text-[var(--gray-text)] transition hover:border-[var(--stroke)] hover:text-[var(--navy-dark)]"
+            className="rounded-full border border-transparent p-1.5 text-[var(--gray-text)] transition hover:border-[var(--stroke)] hover:text-[var(--primary-blue)]"
             aria-label={`Edit ${card.title}`}
+            title="Edit card"
           >
-            Edit
+            <PencilIcon className="h-4 w-4" />
           </button>
           <button
             type="button"
             onClick={() => onDelete(card.id)}
-            className="rounded-full border border-transparent px-2 py-1 text-xs font-semibold text-[var(--gray-text)] transition hover:border-[var(--stroke)] hover:text-[var(--navy-dark)]"
+            className="rounded-full border border-transparent p-1.5 text-[var(--gray-text)] transition hover:border-[var(--stroke)] hover:text-[var(--secondary-purple)]"
             aria-label={`Delete ${card.title}`}
+            title="Delete card"
           >
-            Remove
+            <TrashIcon className="h-4 w-4" />
           </button>
         </div>
       </div>
