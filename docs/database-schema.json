@@ -7,7 +7,7 @@
   },
   "tables": {
     "users": {
-      "purpose": "Application users; supports more users when authentication is expanded.",
+      "purpose": "Application user accounts.",
       "columns": {
         "id": {
           "type": "TEXT",
@@ -19,6 +19,11 @@
           "nullable": false,
           "unique": true
         },
+        "password_hash": {
+          "type": "TEXT",
+          "nullable": false,
+          "format": "salted PBKDF2-HMAC-SHA256, stored as 'salt$hex-digest'"
+        },
         "created_at": {
           "type": "TEXT",
           "nullable": false,
@@ -26,8 +31,34 @@
         }
       }
     },
+    "sessions": {
+      "purpose": "Opaque bearer tokens issued at login/register, validated on every authenticated request.",
+      "columns": {
+        "token": {
+          "type": "TEXT",
+          "nullable": false,
+          "primary_key": true
+        },
+        "user_id": {
+          "type": "TEXT",
+          "nullable": false,
+          "references": "users.id",
+          "on_delete": "CASCADE"
+        },
+        "created_at": {
+          "type": "TEXT",
+          "nullable": false,
+          "format": "ISO-8601 UTC timestamp"
+        },
+        "expires_at": {
+          "type": "TEXT",
+          "nullable": false,
+          "format": "ISO-8601 UTC timestamp, 30 days from creation"
+        }
+      }
+    },
     "boards": {
-      "purpose": "One Kanban board per user for the MVP.",
+      "purpose": "A user may own any number of Kanban boards.",
       "columns": {
         "id": {
           "type": "TEXT",
@@ -38,8 +69,7 @@
           "type": "TEXT",
           "nullable": false,
           "references": "users.id",
-          "on_delete": "CASCADE",
-          "unique": true
+          "on_delete": "CASCADE"
         },
         "title": {
           "type": "TEXT",
@@ -130,7 +160,8 @@
     }
   },
   "relationships": [
-    "users 1-to-1 boards",
+    "users 1-to-many sessions",
+    "users 1-to-many boards",
     "boards 1-to-many columns",
     "columns 1-to-many cards"
   ],
@@ -152,19 +183,26 @@
       }
     }
   },
+  "board_summary_payload": {
+    "id": "board-id",
+    "title": "Board title",
+    "updatedAt": "ISO-8601 UTC timestamp"
+  },
   "invariants": [
-    "Every board belongs to exactly one user.",
-    "A user has at most one board.",
+    "Every session belongs to exactly one user and is deleted on logout or expiry.",
+    "Every board belongs to exactly one user; a user may own any number of boards.",
+    "A user must always own at least one board; the last board cannot be deleted.",
     "Every column belongs to exactly one board.",
     "Every card belongs to exactly one column.",
     "Positions are zero-based and unique within their parent.",
     "The API returns columns ordered by position and cards ordered by position.",
     "Board mutations update updated_at and are committed atomically.",
-    "The column set is fixed after seeding; columns may be renamed but not added, removed, or re-identified.",
+    "A board's column set is fixed after creation; columns may be renamed but not added, removed, or re-identified.",
     "A full-board replace preserves each card's created_at, matched by card id."
   ],
   "mvp_seed": {
     "username": "user",
-    "board": "Create the five demo columns and existing demo cards for the MVP user when no board exists."
+    "password": "password",
+    "board": "Create the five demo columns and existing demo cards for the seeded 'user' account when no board exists."
   }
 }

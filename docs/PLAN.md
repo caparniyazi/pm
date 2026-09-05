@@ -294,3 +294,67 @@ Live structured-response validation remains blocked by the configured OpenRouter
 - An authenticated user can hold a complete AI conversation in the sidebar.
 - The AI can safely create, edit, move, or delete cards and rename columns through structured updates.
 - The board visibly refreshes after AI changes, and the final application works from the documented Docker startup flow.
+
+## Part 11: Real user accounts and multiple boards per user (2026-09-05)
+
+The original MVP scope (`AGENTS.md`) intentionally limited this app to one
+hardcoded demo login and one board per user. The user explicitly requested
+expanding beyond that: real user management and multiple Kanban boards per
+user, "testing thoroughly ... and maintaining strong test code coverage and
+good integration tests." This part records that deliberate scope change.
+
+### Decisions
+
+- Passwords are hashed with salted PBKDF2-HMAC-SHA256 (stdlib `hashlib`, no
+  new dependency) rather than stored in plaintext.
+- Authentication moved from a client-trusted `X-User-Id` header to real
+  sessions: `POST /api/auth/register` and `POST /api/auth/login` return an
+  opaque bearer token (30-day expiry, stored in a new `sessions` table);
+  every board/AI route requires `Authorization: Bearer <token>` and resolves
+  the user server-side. `POST /api/auth/logout` deletes the session.
+- `boards.user_id` is no longer unique: a user may own any number of boards.
+  Registering creates one starter board ("My Board", five empty default
+  columns). `GET/POST /api/boards`, `PATCH /api/boards/{id}`,
+  `DELETE /api/boards/{id}` manage the board list; a user's last board cannot
+  be deleted.
+- The per-board content routes moved from `/api/board` to
+  `/api/boards/{board_id}` (`GET`/`PUT`), and AI chat moved to
+  `/api/boards/{board_id}/ai/chat`. The `BoardData` payload shape
+  (`{ columns, cards }`) is unchanged; only routing and auth changed.
+- The demo account (`user` / `password`, board "Kanban Studio") is still
+  seeded on startup so existing manual/e2e flows keep working through real
+  login instead of a frontend-hardcoded credential check.
+- A database created before this change (missing `users.password_hash`) is
+  detected and rebuilt automatically at startup, since there is no migration
+  tooling and the local database only ever holds demo data.
+
+### Checklist
+
+- [x] Add password hashing and bearer-token sessions to the backend.
+- [x] Add `POST /api/auth/register`, `/login`, `/logout`, `GET /api/auth/me`.
+- [x] Change `boards` to support many boards per user; add list/create/rename/delete routes.
+- [x] Re-scope board content and AI chat routes under `/api/boards/{board_id}`.
+- [x] Update `docs/database-schema.json` and `docs/DATABASE.md` for the new schema and auth model.
+- [x] Rewrite backend tests for the new contract (ownership isolation between users, session lifecycle, multi-board CRUD).
+- [ ] Add a frontend login/register flow backed by the real API (replacing the hardcoded `src/lib/auth.ts` gate).
+- [ ] Add a board switcher UI (list, create, rename, delete boards) and thread the selected `board_id` through `KanbanBoard` and `ChatSidebar`.
+- [ ] Update frontend unit tests and the Playwright e2e suite for accounts and multi-board flows.
+
+### Tests and checks
+
+- [x] Backend: `uv run pytest` (53 tests) covering registration, login/logout,
+      session expiry/invalidation, per-user board isolation, multi-board
+      create/rename/delete (including the last-board-cannot-be-deleted rule),
+      and the full AI chat contract against the new routes.
+- [ ] Frontend unit tests for auth forms and board switching.
+- [ ] Playwright coverage for register -> board -> logout -> login, and
+      creating/switching/deleting boards.
+
+### Success criteria
+
+- A new user can register, is issued their own board, and cannot see or
+  modify any other user's boards.
+- A user can create, rename, switch between, and delete boards, and can never
+  be left with zero boards.
+- The existing single-board Kanban and AI chat behavior is fully preserved
+  for a board once selected.

@@ -16,3 +16,37 @@ class Column(BaseModel):
 class BoardData(BaseModel):
     columns: list[Column]
     cards: dict[str, Card]
+
+
+class BoardSummary(BaseModel):
+    id: str
+    title: str
+    updatedAt: str
+
+
+class CreateBoardRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=100)
+
+
+class RenameBoardRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=100)
+
+
+class RegisterRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_.-]+$")
+    password: str = Field(min_length=8, max_length=128)
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+
+
+class UserPublic(BaseModel):
+    id: str
+    username: str
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserPublic

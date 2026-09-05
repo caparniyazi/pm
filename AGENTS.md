@@ -11,9 +11,12 @@ This project is building a Project Management App. Key features:
 
 ## Limitations
 
-For the MVP, there will only be a user sign in (hardcoded to 'user' and 'password') but the database will support multiple users for future.
-
-For the MVP, there will only be 1 Kanban board per signed in user.
+The app supports real user accounts (register/login/logout with hashed
+passwords and bearer-token sessions) and multiple Kanban boards per user; see
+`docs/PLAN.md` Part 11 for the decision to expand beyond the original
+single-board, hardcoded-credential MVP. A demo account (`user` / `password`,
+board "Kanban Studio") remains seeded on startup for continuity with earlier
+manual and end-to-end testing.
 
 For the MVP, this will run locally (in a docker container)
 

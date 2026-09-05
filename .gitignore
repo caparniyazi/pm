@@ -184,3 +184,6 @@ data/
 *.sqlite3-wal
 *.sqlite3-shm
 
+# Claude Code session-local state
+.claude/*.local.md
+
