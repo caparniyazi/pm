@@ -6,13 +6,14 @@ import type { BoardData } from "@/lib/kanban";
 import { ChatIcon, CloseIcon } from "@/components/icons";
 
 type ChatSidebarProps = {
+  boardId: string;
   onBoardUpdate: (board: BoardData) => void;
 };
 
 // The backend rejects histories longer than this, so only send the recent tail.
 const HISTORY_LIMIT = 20;
 
-export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
+export const ChatSidebar = ({ boardId, onBoardUpdate }: ChatSidebarProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -34,6 +35,7 @@ export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
 
     try {
       const response = await askAI(
+        boardId,
         trimmedQuestion,
         messages.slice(-HISTORY_LIMIT)
       );

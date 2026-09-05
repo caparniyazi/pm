@@ -12,6 +12,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import type { ReactNode } from "react";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
@@ -20,6 +21,8 @@ import { createId, initialData, moveCard, type BoardData } from "@/lib/kanban";
 type KanbanBoardProps = {
   initialBoard?: BoardData;
   onBoardChange?: (board: BoardData) => void | Promise<void>;
+  title?: string;
+  headerActions?: ReactNode;
 };
 
 const RENAME_DEBOUNCE_MS = 400;
@@ -27,6 +30,8 @@ const RENAME_DEBOUNCE_MS = 400;
 export const KanbanBoard = ({
   initialBoard = initialData,
   onBoardChange,
+  title = "Kanban Studio",
+  headerActions,
 }: KanbanBoardProps) => {
   const [board, setBoard] = useState<BoardData>(() => initialBoard);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
@@ -172,21 +177,23 @@ export const KanbanBoard = ({
               Single Board Kanban
             </p>
             <h1 className="mt-3 font-display text-4xl font-semibold text-[var(--navy-dark)]">
-              Kanban Studio
+              {title}
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--gray-text)]">
               Keep momentum visible. Rename columns, drag cards between stages,
               and capture quick notes without getting buried in settings.
             </p>
           </div>
-          <div className="rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--gray-text)]">
-              Focus
-            </p>
-            <p className="mt-2 text-lg font-semibold text-[var(--primary-blue)]">
-              One board. Five columns. Zero clutter.
-            </p>
-          </div>
+          {headerActions ?? (
+            <div className="rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--gray-text)]">
+                Focus
+              </p>
+              <p className="mt-2 text-lg font-semibold text-[var(--primary-blue)]">
+                One board. Five columns. Zero clutter.
+              </p>
+            </div>
+          )}
         </header>
 
         <DndContext

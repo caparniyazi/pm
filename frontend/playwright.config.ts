@@ -9,6 +9,10 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
+  // Tests share one persistent demo account/board against a single backend
+  // container, not a fresh instance each time, so they must not race each
+  // other for that shared state.
+  workers: 1,
   retries: 1,
   use: {
     baseURL: "http://localhost:8000",

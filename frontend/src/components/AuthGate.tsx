@@ -1,33 +1,106 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { AUTH_STORAGE_KEY, isValidCredentials } from "@/lib/auth";
-import { fetchBoard, saveBoard } from "@/lib/api";
+import { useEffect, useState } from "react";
+import {
+  ApiError,
+  createBoard,
+  deleteBoard,
+  fetchBoard,
+  fetchCurrentUser,
+  listBoards,
+  logout as logoutRequest,
+  renameBoard,
+  saveBoard,
+  type BoardSummary,
+  type User,
+} from "@/lib/api";
+import { clearToken, getStoredToken, storeToken } from "@/lib/auth";
 import type { BoardData } from "@/lib/kanban";
+import { AuthForm } from "@/components/AuthForm";
+import { BoardSwitcher } from "@/components/BoardSwitcher";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { ChatSidebar } from "@/components/ChatSidebar";
 
 export const AuthGate = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [sessionRestoreError, setSessionRestoreError] = useState("");
+  const [user, setUser] = useState<User | null>(null);
+  const [boards, setBoards] = useState<BoardSummary[] | null>(null);
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [board, setBoard] = useState<BoardData | null>(null);
   const [boardError, setBoardError] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    const isStoredAuthenticated =
-      window.localStorage.getItem(AUTH_STORAGE_KEY) === "true";
-    queueMicrotask(() => setIsAuthenticated(isStoredAuthenticated));
-  }, []);
-
-  useEffect(() => {
-    if (isAuthenticated !== true) {
+    const token = getStoredToken();
+    if (!token) {
+      queueMicrotask(() => setIsRestoringSession(false));
       return;
     }
 
     let cancelled = false;
-    fetchBoard()
+    fetchCurrentUser()
+      .then((currentUser) => {
+        if (!cancelled) {
+          setUser(currentUser);
+        }
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        // Only a definitive "invalid session" response should sign the user
+        // out; a transient network or server error should leave the token in
+        // place so a retry (e.g. reloading) can still succeed.
+        if (error instanceof ApiError && error.status === 401) {
+          clearToken();
+        } else {
+          setSessionRestoreError("Unable to reach the server. Try reloading the page.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsRestoringSession(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    let cancelled = false;
+    listBoards()
+      .then((loadedBoards) => {
+        if (cancelled) {
+          return;
+        }
+        setBoards(loadedBoards);
+        setSelectedBoardId((current) => current ?? loadedBoards[0]?.id ?? null);
+        setBoardError("");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBoardError("Unable to load your boards.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!selectedBoardId) {
+      return;
+    }
+
+    let cancelled = false;
+    fetchBoard(selectedBoardId)
       .then((loadedBoard) => {
         if (!cancelled) {
           setBoard(loadedBoard);
@@ -36,114 +109,36 @@ export const AuthGate = () => {
       })
       .catch(() => {
         if (!cancelled) {
-          setBoardError("Unable to load your board.");
+          setBoardError("Unable to load this board.");
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated]);
+  }, [selectedBoardId]);
 
-  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!isValidCredentials(username, password)) {
-      setError("Invalid username or password.");
-      return;
-    }
-
-    window.localStorage.setItem(AUTH_STORAGE_KEY, "true");
-    setError("");
-    setIsAuthenticated(true);
+  const handleAuthenticated = (token: string, authenticatedUser: User) => {
+    storeToken(token);
+    setUser(authenticatedUser);
   };
 
   const handleLogout = () => {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
-    setIsAuthenticated(false);
+    logoutRequest().catch(() => undefined);
+    clearToken();
+    setUser(null);
+    setBoards(null);
+    setSelectedBoardId(null);
     setBoard(null);
     setBoardError("");
-    setUsername("");
-    setPassword("");
   };
 
-  if (isAuthenticated === null) {
-    return null;
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-6 py-12">
-        <section className="w-full max-w-md rounded-[32px] border border-[var(--stroke)] bg-white/90 p-8 shadow-[var(--shadow)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--gray-text)]">
-            Project workspace
-          </p>
-          <h1 className="mt-3 font-display text-4xl font-semibold text-[var(--navy-dark)]">
-            Sign in to Kanban Studio
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-[var(--gray-text)]">
-            Use your workspace credentials to continue.
-          </p>
-          <form className="mt-8 space-y-5" onSubmit={handleLogin}>
-            <label className="block text-sm font-semibold text-[var(--navy-dark)]">
-              Username
-              <input
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-[var(--stroke)] px-4 py-3 outline-none focus:ring-2 focus:ring-[var(--primary-blue)]"
-                autoComplete="username"
-              />
-            </label>
-            <label className="block text-sm font-semibold text-[var(--navy-dark)]">
-              Password
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-[var(--stroke)] px-4 py-3 outline-none focus:ring-2 focus:ring-[var(--primary-blue)]"
-                autoComplete="current-password"
-              />
-            </label>
-            {error ? (
-              <p className="text-sm font-semibold text-[var(--secondary-purple)]" role="alert">
-                {error}
-              </p>
-            ) : null}
-            <button
-              type="submit"
-              className="w-full rounded-xl bg-[var(--secondary-purple)] px-4 py-3 font-semibold text-white transition hover:opacity-90"
-            >
-              Sign in
-            </button>
-          </form>
-        </section>
-      </main>
-    );
-  }
-
-  if (!board) {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-6 py-12">
-        <section className="rounded-[32px] border border-[var(--stroke)] bg-white/90 p-8 text-center shadow-[var(--shadow)]">
-          <h1 className="font-display text-2xl font-semibold text-[var(--navy-dark)]">
-            {boardError || "Loading your board..."}
-          </h1>
-          {boardError ? (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="mt-5 rounded-xl bg-[var(--secondary-purple)] px-4 py-3 font-semibold text-white"
-            >
-              Return to sign in
-            </button>
-          ) : null}
-        </section>
-      </main>
-    );
-  }
-
   const handleBoardChange = async (nextBoard: BoardData) => {
+    if (!selectedBoardId) {
+      return;
+    }
     try {
-      const savedBoard = await saveBoard(nextBoard);
+      const savedBoard = await saveBoard(selectedBoardId, nextBoard);
       setBoard(savedBoard);
       setBoardError("");
     } catch (error) {
@@ -152,9 +147,76 @@ export const AuthGate = () => {
     }
   };
 
+  const handleCreateBoard = async (title: string) => {
+    try {
+      const summary = await createBoard(title);
+      setBoards((current) => [summary, ...(current ?? [])]);
+      setSelectedBoardId(summary.id);
+      setBoardError("");
+    } catch {
+      setBoardError("Unable to create a new board.");
+    }
+  };
+
+  const handleRenameBoard = async (boardId: string, title: string) => {
+    try {
+      const summary = await renameBoard(boardId, title);
+      setBoards((current) =>
+        (current ?? []).map((item) => (item.id === boardId ? summary : item))
+      );
+      setBoardError("");
+    } catch {
+      setBoardError("Unable to rename that board.");
+    }
+  };
+
+  const handleDeleteBoard = async (boardId: string) => {
+    try {
+      await deleteBoard(boardId);
+      setBoards((current) => {
+        const remaining = (current ?? []).filter((item) => item.id !== boardId);
+        if (selectedBoardId === boardId) {
+          setSelectedBoardId(remaining[0]?.id ?? null);
+        }
+        return remaining;
+      });
+      setBoardError("");
+    } catch {
+      setBoardError("Unable to delete that board.");
+    }
+  };
+
+  if (isRestoringSession) {
+    return null;
+  }
+
+  if (!user) {
+    return (
+      <AuthForm onAuthenticated={handleAuthenticated} notice={sessionRestoreError} />
+    );
+  }
+
+  if (!boards || !board || !selectedBoardId) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-6 py-12">
+        <section className="rounded-[32px] border border-[var(--stroke)] bg-white/90 p-8 text-center shadow-[var(--shadow)]">
+          <h1 className="font-display text-2xl font-semibold text-[var(--navy-dark)]">
+            {boardError || "Loading your boards..."}
+          </h1>
+        </section>
+      </main>
+    );
+  }
+
+  const currentBoardTitle =
+    boards.find((item) => item.id === selectedBoardId)?.title ?? "Kanban Studio";
+
   return (
     <div className="flex min-h-screen w-full">
-      <div className="absolute right-6 top-6 z-10">
+      <div className="absolute right-6 top-6 z-10 flex items-center gap-3">
+        <span className="hidden text-sm font-semibold text-[var(--navy-dark)] sm:inline">
+          {user.username}
+        </span>
         <button
           type="button"
           onClick={handleLogout}
@@ -169,9 +231,24 @@ export const AuthGate = () => {
         </div>
       ) : null}
       <div className="min-w-0 flex-1">
-        <KanbanBoard initialBoard={board} onBoardChange={handleBoardChange} />
+        <KanbanBoard
+          key={selectedBoardId}
+          title={currentBoardTitle}
+          initialBoard={board}
+          onBoardChange={handleBoardChange}
+          headerActions={
+            <BoardSwitcher
+              boards={boards}
+              selectedBoardId={selectedBoardId}
+              onSelect={setSelectedBoardId}
+              onCreate={handleCreateBoard}
+              onRename={handleRenameBoard}
+              onDelete={handleDeleteBoard}
+            />
+          }
+        />
       </div>
-      <ChatSidebar onBoardUpdate={setBoard} />
+      <ChatSidebar key={selectedBoardId} boardId={selectedBoardId} onBoardUpdate={setBoard} />
     </div>
   );
 };

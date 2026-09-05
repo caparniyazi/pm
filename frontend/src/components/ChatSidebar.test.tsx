@@ -22,7 +22,7 @@ describe("ChatSidebar", () => {
       board_update: null,
       board: initialData,
     });
-    render(<ChatSidebar onBoardUpdate={vi.fn()} />);
+    render(<ChatSidebar boardId="board-1" onBoardUpdate={vi.fn()} />);
 
     await userEvent.type(
       screen.getByLabelText("Ask the AI assistant"),
@@ -31,7 +31,7 @@ describe("ChatSidebar", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("I can help with that.")).toBeInTheDocument();
-    expect(mockedAskAI).toHaveBeenCalledWith("What is next?", []);
+    expect(mockedAskAI).toHaveBeenCalledWith("board-1", "What is next?", []);
   });
 
   it("shows loading and errors", async () => {
@@ -42,7 +42,7 @@ describe("ChatSidebar", () => {
           rejectRequest = reject;
         })
     );
-    render(<ChatSidebar onBoardUpdate={vi.fn()} />);
+    render(<ChatSidebar boardId="board-1" onBoardUpdate={vi.fn()} />);
 
     await userEvent.type(screen.getByLabelText("Ask the AI assistant"), "Help");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -71,7 +71,7 @@ describe("ChatSidebar", () => {
       },
       board: updatedBoard,
     });
-    render(<ChatSidebar onBoardUpdate={onBoardUpdate} />);
+    render(<ChatSidebar boardId="board-1" onBoardUpdate={onBoardUpdate} />);
 
     await userEvent.type(
       screen.getByLabelText("Ask the AI assistant"),

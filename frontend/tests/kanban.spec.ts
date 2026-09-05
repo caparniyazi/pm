@@ -28,9 +28,26 @@ const seedBoard = {
   },
 };
 
+const loginAndGetToken = async (page: Page): Promise<string> => {
+  const response = await page.request.post("/api/auth/login", {
+    data: { username: "user", password: "password" },
+  });
+  expect(response.ok()).toBeTruthy();
+  const body = await response.json();
+  return body.token as string;
+};
+
 const resetBoard = async (page: Page) => {
-  const response = await page.request.put("/api/board", {
-    headers: { "X-User-Id": "user-1" },
+  const token = await loginAndGetToken(page);
+  const boardsResponse = await page.request.get("/api/boards", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(boardsResponse.ok()).toBeTruthy();
+  const boards = await boardsResponse.json();
+  const boardId = boards[0].id as string;
+
+  const response = await page.request.put(`/api/boards/${boardId}`, {
+    headers: { Authorization: `Bearer ${token}` },
     data: seedBoard,
   });
   expect(response.ok()).toBeTruthy();
@@ -43,14 +60,15 @@ test("rejects invalid credentials", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in" }).click();
   const alert = page
     .getByRole("alert")
-    .filter({ hasText: "Invalid username or password." });
-  await expect(alert).toHaveText("Invalid username or password.");
+    .filter({ hasText: "Invalid username or password" });
+  await expect(alert).toBeVisible();
   await expect(page.getByRole("heading", { name: "Sign in to Kanban Studio" })).toBeVisible();
 });
 
 test("persists login and supports logout", async ({ page }) => {
   await page.goto("/");
   await signIn(page);
+  await expect(page.getByRole("heading", { name: "Kanban Studio" })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Kanban Studio" })).toBeVisible();
   await page.getByRole("button", { name: "Log out" }).click();
@@ -114,4 +132,41 @@ test("moves a card between columns", async ({ page }) => {
   await expect(
     page.getByTestId("column-col-backlog").getByTestId("card-card-1")
   ).toHaveCount(0);
+});
+
+test("registers a new account and lands on a private empty board", async ({ page }) => {
+  const username = `pw-user-${Date.now()}`;
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Need an account? Create one" }).click();
+  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+  await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Password").fill("password123");
+  await page.getByRole("button", { name: "Create account" }).click();
+
+  await expect(page.getByRole("heading", { name: "My Board" })).toBeVisible();
+  await expect(page.locator('[data-testid^="column-"]')).toHaveCount(5);
+  await expect(page.getByText("Align roadmap themes")).toHaveCount(0);
+});
+
+test("creates, switches between, and deletes boards", async ({ page }) => {
+  await page.goto("/");
+  await resetBoard(page);
+  await signIn(page);
+  await expect(page.getByRole("heading", { name: "Kanban Studio" })).toBeVisible();
+
+  await page.getByRole("button", { name: "New board" }).click();
+  await page.getByLabel("New board name").fill("Second Board");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "Second Board" })).toBeVisible();
+  await expect(page.getByText("Align roadmap themes")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Kanban Studio", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Kanban Studio" })).toBeVisible();
+  await expect(page.getByText("Align roadmap themes")).toBeVisible();
+
+  await page.getByRole("button", { name: "Second Board", exact: true }).hover();
+  await page.getByRole("button", { name: "Delete Second Board" }).click();
+  await expect(page.getByRole("button", { name: "Second Board", exact: true })).toHaveCount(0);
 });

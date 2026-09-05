@@ -146,10 +146,8 @@ def seed_mvp_board(connection: sqlite3.Connection) -> None:
         "INSERT INTO boards (id, user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
         (board_id, user_id, "Kanban Studio", timestamp, timestamp),
     )
-    column_ids = []
-    for position, title in enumerate(DEFAULT_COLUMN_TITLES):
-        column_id = f"col-{title.lower().replace(' ', '-')}"
-        column_ids.append(column_id)
+    column_ids = ["col-backlog", "col-discovery", "col-progress", "col-review", "col-done"]
+    for position, (column_id, title) in enumerate(zip(column_ids, DEFAULT_COLUMN_TITLES)):
         connection.execute(
             "INSERT INTO columns (id, board_id, title, position) VALUES (?, ?, ?, ?)",
             (column_id, board_id, title, position),
