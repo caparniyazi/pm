@@ -138,6 +138,17 @@
           "nullable": false,
           "default": ""
         },
+        "priority": {
+          "type": "TEXT",
+          "nullable": true,
+          "enum": ["low", "medium", "high"]
+        },
+        "due_date": {
+          "type": "TEXT",
+          "nullable": true,
+          "format": "YYYY-MM-DD calendar date",
+          "wire_name": "dueDate"
+        },
         "position": {
           "type": "INTEGER",
           "nullable": false,
@@ -179,10 +190,17 @@
       "card-id": {
         "id": "card-id",
         "title": "Card title",
-        "details": "Card details"
+        "details": "Card details",
+        "priority": "high",
+        "dueDate": "2026-01-31"
       }
     }
   },
+  "board_payload_notes": [
+    "priority is one of low, medium, high, or null.",
+    "dueDate is a YYYY-MM-DD calendar date or null.",
+    "Both card metadata fields are always present in API responses."
+  ],
   "board_summary_payload": {
     "id": "board-id",
     "title": "Board title",

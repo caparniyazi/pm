@@ -2,20 +2,28 @@ import { useState, type FormEvent } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import clsx from "clsx";
-import type { Card } from "@/lib/kanban";
+import type { Card, CardFields } from "@/lib/kanban";
+import { CardMetaBadges, CardMetaFields } from "@/components/CardMeta";
 import { PencilIcon, TrashIcon } from "@/components/icons";
 
 type KanbanCardProps = {
   card: Card;
-  onEdit: (cardId: string, title: string, details: string) => void;
+  onEdit: (cardId: string, fields: CardFields) => void;
   onDelete: (cardId: string) => void;
 };
+
+const draftFrom = (card: Card): CardFields => ({
+  title: card.title,
+  details: card.details,
+  priority: card.priority ?? null,
+  dueDate: card.dueDate ?? null,
+});
 
 export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id });
   const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState({ title: card.title, details: card.details });
+  const [draft, setDraft] = useState<CardFields>(() => draftFrom(card));
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -28,7 +36,7 @@ export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
     if (!title) {
       return;
     }
-    onEdit(card.id, title, draft.details.trim());
+    onEdit(card.id, { ...draft, title, details: draft.details.trim() });
     setIsEditing(false);
   };
 
@@ -58,6 +66,14 @@ export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
           rows={3}
           className="w-full resize-none rounded-xl border border-[var(--stroke)] bg-white px-3 py-2 text-sm text-[var(--gray-text)] outline-none focus:border-[var(--primary-blue)]"
         />
+        <CardMetaFields
+          priority={draft.priority}
+          dueDate={draft.dueDate}
+          onPriorityChange={(priority) =>
+            setDraft((prev) => ({ ...prev, priority }))
+          }
+          onDueDateChange={(dueDate) => setDraft((prev) => ({ ...prev, dueDate }))}
+        />
         <div className="flex items-center gap-2">
           <button
             type="submit"
@@ -68,7 +84,7 @@ export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
           <button
             type="button"
             onClick={() => {
-              setDraft({ title: card.title, details: card.details });
+              setDraft(draftFrom(card));
               setIsEditing(false);
             }}
             className="rounded-full border border-[var(--stroke)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--gray-text)] transition hover:text-[var(--navy-dark)]"
@@ -101,12 +117,13 @@ export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
           <p className="mt-2 text-sm leading-6 text-[var(--gray-text)]">
             {card.details}
           </p>
+          <CardMetaBadges priority={card.priority} dueDate={card.dueDate} />
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={() => {
-              setDraft({ title: card.title, details: card.details });
+              setDraft(draftFrom(card));
               setIsEditing(true);
             }}
             className="rounded-full border border-transparent p-1.5 text-[var(--gray-text)] transition hover:border-[var(--stroke)] hover:text-[var(--primary-blue)]"

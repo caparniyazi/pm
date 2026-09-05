@@ -1,7 +1,22 @@
+export type Priority = "low" | "medium" | "high";
+
+export const PRIORITIES: Priority[] = ["low", "medium", "high"];
+
 export type Card = {
   id: string;
   title: string;
   details: string;
+  priority?: Priority | null;
+  dueDate?: string | null;
+};
+
+// Fields an add/edit card form collects, kept together so the callback
+// signature does not grow one positional argument per card attribute.
+export type CardFields = {
+  title: string;
+  details: string;
+  priority: Priority | null;
+  dueDate: string | null;
 };
 
 export type Column = {
@@ -32,26 +47,31 @@ export const initialData: BoardData = {
       id: "card-1",
       title: "Align roadmap themes",
       details: "Draft quarterly themes with impact statements and metrics.",
+      priority: "high",
     },
     "card-2": {
       id: "card-2",
       title: "Gather customer signals",
       details: "Review support tags, sales notes, and churn feedback.",
+      priority: "medium",
     },
     "card-3": {
       id: "card-3",
       title: "Prototype analytics view",
       details: "Sketch initial dashboard layout and key drill-downs.",
+      priority: "medium",
     },
     "card-4": {
       id: "card-4",
       title: "Refine status language",
       details: "Standardize column labels and tone across the board.",
+      priority: "low",
     },
     "card-5": {
       id: "card-5",
       title: "Design card layout",
       details: "Add hierarchy and spacing for scanning dense lists.",
+      priority: "high",
     },
     "card-6": {
       id: "card-6",

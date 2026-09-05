@@ -10,7 +10,15 @@ SAMPLE = {
         {"id": "col-a", "title": "A", "cardIds": ["card-1"]},
         {"id": "col-b", "title": "B", "cardIds": []},
     ],
-    "cards": {"card-1": {"id": "card-1", "title": "First", "details": "Notes"}},
+    "cards": {
+        "card-1": {
+            "id": "card-1",
+            "title": "First",
+            "details": "Notes",
+            "priority": "high",
+            "dueDate": "2026-01-31",
+        }
+    },
 }
 
 
@@ -20,7 +28,25 @@ def test_board_payload_field_names_are_stable() -> None:
     assert dumped == SAMPLE
     assert set(dumped) == {"columns", "cards"}
     assert set(dumped["columns"][0]) == {"id", "title", "cardIds"}
-    assert set(dumped["cards"]["card-1"]) == {"id", "title", "details"}
+    assert set(dumped["cards"]["card-1"]) == {
+        "id",
+        "title",
+        "details",
+        "priority",
+        "dueDate",
+    }
+
+
+def test_card_metadata_defaults_to_null() -> None:
+    dumped = BoardData.model_validate(
+        {
+            "columns": [{"id": "col-a", "title": "A", "cardIds": ["card-1"]}],
+            "cards": {"card-1": {"id": "card-1", "title": "First", "details": ""}},
+        }
+    ).model_dump()
+
+    assert dumped["cards"]["card-1"]["priority"] is None
+    assert dumped["cards"]["card-1"]["dueDate"] is None
 
 
 def test_documented_schema_example_matches_model() -> None:

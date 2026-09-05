@@ -96,6 +96,29 @@ test("adds a card to a column", async ({ page }) => {
   await expect(firstColumn.getByText(title)).toBeVisible();
 });
 
+test("sets a card priority and due date that persist across reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await resetBoard(page);
+  await signIn(page);
+  await expect(page.getByRole("heading", { name: "Kanban Studio" })).toBeVisible();
+
+  const card = page.getByTestId("card-card-1");
+  await card.getByRole("button", { name: /edit align roadmap themes/i }).click();
+  await card.getByLabel("Card priority").selectOption("high");
+  await card.getByLabel("Card due date").fill("2026-12-31");
+  await card.getByRole("button", { name: "Save" }).click();
+
+  await expect(card.getByText("high")).toBeVisible();
+  await expect(card.getByText("Due 31 Dec 2026")).toBeVisible();
+
+  await page.reload();
+  const reloaded = page.getByTestId("card-card-1");
+  await expect(reloaded.getByText("high")).toBeVisible();
+  await expect(reloaded.getByText("Due 31 Dec 2026")).toBeVisible();
+});
+
 test("moves a card between columns", async ({ page }) => {
   await page.goto("/");
   await resetBoard(page);

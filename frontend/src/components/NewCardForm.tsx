@@ -1,10 +1,17 @@
 import { useState, type FormEvent } from "react";
 import { PlusIcon } from "@/components/icons";
+import { CardMetaFields } from "@/components/CardMeta";
+import type { CardFields, Priority } from "@/lib/kanban";
 
-const initialFormState = { title: "", details: "" };
+const initialFormState = {
+  title: "",
+  details: "",
+  priority: null as Priority | null,
+  dueDate: null as string | null,
+};
 
 type NewCardFormProps = {
-  onAdd: (title: string, details: string) => void;
+  onAdd: (fields: CardFields) => void;
 };
 
 export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
@@ -16,7 +23,12 @@ export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
     if (!formState.title.trim()) {
       return;
     }
-    onAdd(formState.title.trim(), formState.details.trim());
+    onAdd({
+      title: formState.title.trim(),
+      details: formState.details.trim(),
+      priority: formState.priority,
+      dueDate: formState.dueDate,
+    });
     setFormState(initialFormState);
     setIsOpen(false);
   };
@@ -42,6 +54,16 @@ export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
             placeholder="Details"
             rows={3}
             className="w-full resize-none rounded-xl border border-[var(--stroke)] bg-white px-3 py-2 text-sm text-[var(--gray-text)] outline-none transition focus:border-[var(--primary-blue)]"
+          />
+          <CardMetaFields
+            priority={formState.priority}
+            dueDate={formState.dueDate}
+            onPriorityChange={(priority) =>
+              setFormState((prev) => ({ ...prev, priority }))
+            }
+            onDueDateChange={(dueDate) =>
+              setFormState((prev) => ({ ...prev, dueDate }))
+            }
           />
           <div className="flex items-center gap-2">
             <button

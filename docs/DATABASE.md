@@ -40,6 +40,13 @@ A board's column set is fixed once created: `PUT /api/boards/{board_id}` may
 rename columns and reorder or edit cards, but a payload that adds, removes, or
 changes a column id is rejected. A full-board replace preserves each card's
 `created_at` (matched by card id) and refreshes `updated_at`. The board
-content payload shape (`{ columns, cards }`) is unchanged from the original
-single-board MVP; only the routing (`/api/boards/{board_id}` instead of
-`/api/board`) and the authentication boundary changed.
+content payload shape (`{ columns, cards }`) keeps its top-level structure from
+the original single-board MVP; only the routing (`/api/boards/{board_id}`
+instead of `/api/board`) and the authentication boundary changed.
+
+Each card carries two optional metadata fields alongside `title` and
+`details`: `priority` (`"low"`, `"medium"`, `"high"`, or `null`) and `dueDate`
+(a `YYYY-MM-DD` calendar date, or `null`). Both are stored on the `cards` table
+(`priority`, `due_date`) and are always present in API responses, defaulting to
+`null`. A database created before these columns existed has them added by a
+plain `ALTER TABLE` at startup (no backfill needed).

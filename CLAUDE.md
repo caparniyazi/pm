@@ -69,7 +69,7 @@ The `BoardData` structure is defined twice and must match:
 - Backend: `backend/app/models.py` (`Card`, `Column`, `BoardData` pydantic models).
 - Frontend: `frontend/src/lib/kanban.ts` (types + `initialData` + pure ops `moveCard`, `createId`).
 
-Shape: `{ columns: [{ id, title, cardIds: string[] }], cards: { [id]: { id, title, details } } }`. `cardIds` is the ordering; `cards` is a lookup map. Note the camelCase `cardIds` crosses the wire as-is (pydantic field is literally `cardIds`).
+Shape: `{ columns: [{ id, title, cardIds: string[] }], cards: { [id]: { id, title, details, priority, dueDate } } }`. `cardIds` is the ordering; `cards` is a lookup map. Note the camelCase `cardIds` and `dueDate` cross the wire as-is (pydantic fields are literally `cardIds` / `dueDate`). `priority` is `"low" | "medium" | "high" | null`; `dueDate` is a `YYYY-MM-DD` string or `null`. Both card metadata fields default to `null` and are always present in API responses; on the frontend `Card` type they are optional.
     
 ### AI chat
 

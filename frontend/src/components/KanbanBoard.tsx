@@ -16,7 +16,13 @@ import type { ReactNode } from "react";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
-import { createId, initialData, moveCard, type BoardData } from "@/lib/kanban";
+import {
+  createId,
+  initialData,
+  moveCard,
+  type BoardData,
+  type CardFields,
+} from "@/lib/kanban";
 
 type KanbanBoardProps = {
   initialBoard?: BoardData;
@@ -117,13 +123,13 @@ export const KanbanBoard = ({
     });
   };
 
-  const handleAddCard = (columnId: string, title: string, details: string) => {
+  const handleAddCard = (columnId: string, fields: CardFields) => {
     const id = createId("card");
     commit({
       ...board,
       cards: {
         ...board.cards,
-        [id]: { id, title, details },
+        [id]: { id, ...fields },
       },
       columns: board.columns.map((column) =>
         column.id === columnId
@@ -133,7 +139,7 @@ export const KanbanBoard = ({
     });
   };
 
-  const handleEditCard = (cardId: string, title: string, details: string) => {
+  const handleEditCard = (cardId: string, fields: CardFields) => {
     if (!board.cards[cardId]) {
       return;
     }
@@ -141,7 +147,7 @@ export const KanbanBoard = ({
       ...board,
       cards: {
         ...board.cards,
-        [cardId]: { ...board.cards[cardId], title, details },
+        [cardId]: { ...board.cards[cardId], ...fields },
       },
     });
   };

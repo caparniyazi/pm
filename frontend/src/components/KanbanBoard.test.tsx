@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KanbanBoard } from "@/components/KanbanBoard";
 
@@ -60,6 +60,56 @@ describe("KanbanBoard", () => {
     expect(within(column).getByText("Align themes")).toBeInTheDocument();
     expect(
       within(column).queryByText("Align roadmap themes")
+    ).not.toBeInTheDocument();
+  });
+
+  it("adds a card with a priority and due date", async () => {
+    render(<KanbanBoard />);
+    const column = getFirstColumn();
+
+    await userEvent.click(
+      within(column).getByRole("button", { name: /add a card/i })
+    );
+    await userEvent.type(
+      within(column).getByPlaceholderText(/card title/i),
+      "Prioritised card"
+    );
+    await userEvent.selectOptions(
+      within(column).getByLabelText("Card priority"),
+      "high"
+    );
+    fireEvent.change(within(column).getByLabelText("Card due date"), {
+      target: { value: "2026-12-31" },
+    });
+    await userEvent.click(within(column).getByRole("button", { name: /add card/i }));
+
+    const card = within(column).getByText("Prioritised card").closest("article");
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getByText("high")).toBeInTheDocument();
+    expect(
+      within(card as HTMLElement).getByText("Due 31 Dec 2026")
+    ).toBeInTheDocument();
+  });
+
+  it("changes the priority of an existing card", async () => {
+    render(<KanbanBoard />);
+    const column = getFirstColumn();
+
+    await userEvent.click(
+      within(column).getByRole("button", { name: /edit gather customer signals/i })
+    );
+    await userEvent.selectOptions(
+      within(column).getByLabelText("Card priority"),
+      "low"
+    );
+    await userEvent.click(within(column).getByRole("button", { name: /save/i }));
+
+    const card = within(column)
+      .getByText("Gather customer signals")
+      .closest("article");
+    expect(within(card as HTMLElement).getByText("low")).toBeInTheDocument();
+    expect(
+      within(card as HTMLElement).queryByText("medium")
     ).not.toBeInTheDocument();
   });
 });

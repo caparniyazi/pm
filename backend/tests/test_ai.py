@@ -98,6 +98,62 @@ def test_apply_board_update_supports_all_operations() -> None:
     assert updated.columns[1].cardIds == ["card-2"]
 
 
+def test_create_and_edit_card_carry_priority_and_due_date() -> None:
+    updated = apply_board_update(
+        board(),
+        BoardUpdate(
+            operations=[
+                CreateCardOperation(
+                    kind="create_card",
+                    card_id="card-2",
+                    title="Second",
+                    column_id="todo",
+                    priority="high",
+                    due_date="2026-02-01",
+                ),
+                EditCardOperation(
+                    kind="edit_card",
+                    card_id="card-1",
+                    priority="low",
+                    due_date="2026-03-10",
+                ),
+            ]
+        ),
+    )
+
+    assert updated.cards["card-2"].priority == "high"
+    assert updated.cards["card-2"].dueDate == "2026-02-01"
+    assert updated.cards["card-1"].priority == "low"
+    assert updated.cards["card-1"].dueDate == "2026-03-10"
+
+
+def test_edit_card_with_only_priority_is_allowed() -> None:
+    updated = apply_board_update(
+        board(),
+        BoardUpdate(
+            operations=[
+                EditCardOperation(kind="edit_card", card_id="card-1", priority="medium")
+            ]
+        ),
+    )
+
+    assert updated.cards["card-1"].priority == "medium"
+    assert updated.cards["card-1"].title == "First"
+
+
+def test_operations_reject_invalid_priority_and_due_date() -> None:
+    with pytest.raises(ValueError):
+        CreateCardOperation(
+            kind="create_card",
+            card_id="x",
+            title="X",
+            column_id="todo",
+            priority="urgent",
+        )
+    with pytest.raises(ValueError):
+        EditCardOperation(kind="edit_card", card_id="card-1", due_date="03/10/2026")
+
+
 def test_invalid_multi_operation_does_not_mutate_original_board() -> None:
     original = board()
     update = BoardUpdate(

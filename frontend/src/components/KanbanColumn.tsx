@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import type { Card, Column } from "@/lib/kanban";
+import type { Card, CardFields, Column } from "@/lib/kanban";
 import { KanbanCard } from "@/components/KanbanCard";
 import { NewCardForm } from "@/components/NewCardForm";
 
@@ -9,8 +9,8 @@ type KanbanColumnProps = {
   column: Column;
   cards: Card[];
   onRename: (columnId: string, title: string) => void;
-  onAddCard: (columnId: string, title: string, details: string) => void;
-  onEditCard: (cardId: string, title: string, details: string) => void;
+  onAddCard: (columnId: string, fields: CardFields) => void;
+  onEditCard: (cardId: string, fields: CardFields) => void;
   onDeleteCard: (columnId: string, cardId: string) => void;
 };
 
@@ -66,9 +66,7 @@ export const KanbanColumn = ({
           </div>
         )}
       </div>
-      <NewCardForm
-        onAdd={(title, details) => onAddCard(column.id, title, details)}
-      />
+      <NewCardForm onAdd={(fields) => onAddCard(column.id, fields)} />
     </section>
   );
 };

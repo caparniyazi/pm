@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from backend.app.models import BoardData, Card
+from backend.app.models import BoardData, Card, DUE_DATE_PATTERN, Priority
 from backend.app.openrouter import ask_openrouter_messages
 
 
@@ -28,6 +28,8 @@ class CreateCardOperation(BaseModel):
     card_id: str = Field(min_length=1)
     title: str = Field(min_length=1)
     details: str = ""
+    priority: Priority | None = None
+    due_date: str | None = Field(default=None, pattern=DUE_DATE_PATTERN)
     column_id: str = Field(min_length=1)
     position: int = Field(default=-1, ge=-1)
 
@@ -37,6 +39,8 @@ class EditCardOperation(BaseModel):
     card_id: str = Field(min_length=1)
     title: str | None = None
     details: str | None = None
+    priority: Priority | None = None
+    due_date: str | None = Field(default=None, pattern=DUE_DATE_PATTERN)
 
 
 class MoveCardOperation(BaseModel):
@@ -87,7 +91,9 @@ def build_messages(board: BoardData, request: AIChatRequest) -> list[dict[str, s
         '{"operations": [...] } or null}. Allowed operation kinds are '
         "create_card, edit_card, move_card, delete_card, and rename_column. "
         "For positions, use -1 to append. Use existing IDs for edits, moves, "
-        "deletes, and column renames. New card IDs must be unique."
+        "deletes, and column renames. New card IDs must be unique. "
+        "create_card and edit_card also accept an optional priority "
+        '("low", "medium", or "high") and due_date ("YYYY-MM-DD").'
     )
     context = json.dumps(
         {
@@ -157,6 +163,8 @@ def _create_card(board: BoardData, operation: CreateCardOperation) -> None:
         id=operation.card_id,
         title=operation.title,
         details=operation.details,
+        priority=operation.priority,
+        dueDate=operation.due_date,
     )
     _insert_card(column, operation.card_id, operation.position)
 
@@ -165,14 +173,24 @@ def _edit_card(board: BoardData, operation: EditCardOperation) -> None:
     card = board.cards.get(operation.card_id)
     if card is None:
         raise ValueError(f"Card not found: {operation.card_id}")
-    if operation.title is None and operation.details is None:
-        raise ValueError("Card edit must change title or details")
+    changes = (
+        operation.title,
+        operation.details,
+        operation.priority,
+        operation.due_date,
+    )
+    if all(value is None for value in changes):
+        raise ValueError("Card edit must change at least one field")
     if operation.title is not None:
         if not operation.title:
             raise ValueError("Card title cannot be empty")
         card.title = operation.title
     if operation.details is not None:
         card.details = operation.details
+    if operation.priority is not None:
+        card.priority = operation.priority
+    if operation.due_date is not None:
+        card.dueDate = operation.due_date
 
 
 def _move_card(board: BoardData, operation: MoveCardOperation) -> None:

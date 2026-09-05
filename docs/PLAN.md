@@ -338,7 +338,7 @@ good integration tests." This part records that deliberate scope change.
 - [x] Rewrite backend tests for the new contract (ownership isolation between users, session lifecycle, multi-board CRUD).
 - [ ] Add a frontend login/register flow backed by the real API (replacing the hardcoded `src/lib/auth.ts` gate).
 - [ ] Add a board switcher UI (list, create, rename, delete boards) and thread the selected `board_id` through `KanbanBoard` and `ChatSidebar`.
-- [ ] Update frontend unit tests and the Playwright e2e suite for accounts and multi-board flows.
+- [x] Update frontend unit tests and the Playwright e2e suite for accounts and multi-board flows.
 
 ### Tests and checks
 
@@ -346,9 +346,10 @@ good integration tests." This part records that deliberate scope change.
       session expiry/invalidation, per-user board isolation, multi-board
       create/rename/delete (including the last-board-cannot-be-deleted rule),
       and the full AI chat contract against the new routes.
-- [ ] Frontend unit tests for auth forms and board switching.
-- [ ] Playwright coverage for register -> board -> logout -> login, and
-      creating/switching/deleting boards.
+- [x] Frontend unit tests for auth forms and board switching (AuthForm 3,
+      BoardSwitcher 5, AuthGate 8).
+- [x] Playwright coverage for register -> board, and creating/switching/
+      deleting boards (`frontend/tests/kanban.spec.ts`).
 
 ### Success criteria
 
@@ -358,3 +359,56 @@ good integration tests." This part records that deliberate scope change.
   be left with zero boards.
 - The existing single-board Kanban and AI chat behavior is fully preserved
   for a board once selected.
+
+## Part 12: Card priority and due dates (2026-09-05)
+
+First increment toward a richer "comprehensive PM app": cards gain structured
+metadata beyond free-text details.
+
+### Decisions
+
+- `Card` gains two optional fields: `priority` (`"low" | "medium" | "high" |
+  null`) and `dueDate` (a `YYYY-MM-DD` string or `null`). Both default to
+  `null` and are always serialized, so the wire shape is `{ id, title,
+  details, priority, dueDate }`. Frontend `Card` keeps them optional.
+- Stored on the existing `cards` table as `priority` / `due_date` (both
+  nullable TEXT). A pre-existing local database gets the columns via a plain
+  `ALTER TABLE ADD COLUMN` at startup (`_add_missing_card_columns`); there is
+  no data to backfill. A schema old enough to also lack `users.password_hash`
+  is still fully rebuilt by `_reset_outdated_schema`.
+- `due_date` format is validated by a `^\d{4}-\d{2}-\d{2}$` pattern on the
+  pydantic field (shared as `DUE_DATE_PATTERN` in `models.py`); `priority`
+  by the `Priority` `Literal`. The AI `create_card` / `edit_card` operations
+  accept both fields under the same validation; `edit_card` may now change
+  only priority or only due date.
+- The add/edit card callbacks pass a single `CardFields` object rather than
+  growing one positional argument per attribute. Priority and due date are
+  rendered as small badges on the card (overdue due dates use the accent
+  colour) and formatted locale-independently.
+
+### Checklist
+
+- [x] Backend `Card` model, `cards` schema + startup migration, `read_board`
+      / `replace_board` round-trip, seed data priorities.
+- [x] AI `create_card` / `edit_card` operations carry priority and due date.
+- [x] Frontend `Card` / `CardFields` types, shared `CardMeta` component
+      (badges + form fields), `NewCardForm` and `KanbanCard` edit UI.
+- [x] Docs: `database-schema.json`, `DATABASE.md`, `CLAUDE.md`.
+
+### Tests and checks
+
+- [x] Backend: `uv run pytest` (59 tests) - contract field names, metadata
+      defaulting to null, database round-trip, seeded priorities, and AI
+      create/edit carrying and validating the new fields.
+- [x] Frontend unit: `npm run test:unit` (40 tests) - adding a card with a
+      priority and due date, changing an existing card's priority, and the
+      updated `BoardData` contract test.
+- [x] `npm run lint` and `npm run build` clean.
+- [x] Playwright: a spec that sets a card's priority and due date through the
+      edit form and asserts they survive a reload.
+
+### Success criteria
+
+- A card can be given a priority and a due date from the UI or the AI, the
+  values persist through a full-board replace, and they are shown as badges
+  on the board.
