@@ -32,6 +32,31 @@ export type AIChatResponse = {
   board: BoardData;
 };
 
+export type Comment = {
+  id: string;
+  cardId: string;
+  author: string;
+  body: string;
+  createdAt: string;
+};
+
+export type ActivityKind =
+  | "card_created"
+  | "card_edited"
+  | "card_moved"
+  | "card_deleted"
+  | "column_renamed"
+  | "comment_added"
+  | "comment_deleted";
+
+export type ActivityEntry = {
+  id: string;
+  kind: ActivityKind;
+  summary: string;
+  cardId: string | null;
+  createdAt: string;
+};
+
 export class ApiError extends Error {
   status: number;
 
@@ -117,3 +142,20 @@ export const askAI = (boardId: string, question: string, history: ChatMessage[])
     method: "POST",
     body: JSON.stringify({ question, history }),
   });
+
+export const listComments = (boardId: string) =>
+  request<Comment[]>(`/api/boards/${boardId}/comments`);
+
+export const addComment = (boardId: string, cardId: string, body: string) =>
+  request<Comment>(`/api/boards/${boardId}/cards/${cardId}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+
+export const deleteComment = (boardId: string, commentId: string) =>
+  request<void>(`/api/boards/${boardId}/comments/${commentId}`, {
+    method: "DELETE",
+  });
+
+export const listActivity = (boardId: string) =>
+  request<ActivityEntry[]>(`/api/boards/${boardId}/activity`);

@@ -12,25 +12,32 @@ from backend.app.ai import (
     generate_structured_response,
 )
 from backend.app.database import (
+    add_comment,
     authenticate_user,
     create_board,
     create_session,
     create_user,
     delete_board,
+    delete_comment,
     delete_session,
     get_username,
     initialize_database,
+    list_activity,
     list_boards,
+    list_comments,
     read_board,
     rename_board,
     replace_board,
     resolve_session,
 )
 from backend.app.models import (
+    ActivityEntry,
     AuthResponse,
     BoardData,
     BoardSummary,
+    Comment,
     CreateBoardRequest,
+    CreateCommentRequest,
     LoginRequest,
     RegisterRequest,
     RenameBoardRequest,
@@ -172,6 +179,57 @@ def update_board_route(
     if result is None:
         raise HTTPException(status_code=404, detail="Board not found")
     return result
+
+
+@app.get("/api/boards/{board_id}/comments", response_model=list[Comment])
+def list_comments_route(
+    board_id: str, user_id: str = Depends(current_user_id)
+) -> list[Comment]:
+    comments = list_comments(settings.database_path, user_id, board_id)
+    if comments is None:
+        raise HTTPException(status_code=404, detail="Board not found")
+    return [Comment(**comment) for comment in comments]
+
+
+@app.post(
+    "/api/boards/{board_id}/cards/{card_id}/comments",
+    response_model=Comment,
+    status_code=201,
+)
+def add_comment_route(
+    board_id: str,
+    card_id: str,
+    payload: CreateCommentRequest,
+    user_id: str = Depends(current_user_id),
+) -> Comment:
+    try:
+        comment = add_comment(
+            settings.database_path, user_id, board_id, card_id, payload.body
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if comment is None:
+        raise HTTPException(status_code=404, detail="Board not found")
+    return Comment(**comment)
+
+
+@app.delete("/api/boards/{board_id}/comments/{comment_id}", status_code=204)
+def delete_comment_route(
+    board_id: str, comment_id: str, user_id: str = Depends(current_user_id)
+) -> Response:
+    if not delete_comment(settings.database_path, user_id, board_id, comment_id):
+        raise HTTPException(status_code=404, detail="Comment not found")
+    return Response(status_code=204)
+
+
+@app.get("/api/boards/{board_id}/activity", response_model=list[ActivityEntry])
+def list_activity_route(
+    board_id: str, user_id: str = Depends(current_user_id)
+) -> list[ActivityEntry]:
+    activity = list_activity(settings.database_path, user_id, board_id)
+    if activity is None:
+        raise HTTPException(status_code=404, detail="Board not found")
+    return [ActivityEntry(**entry) for entry in activity]
 
 
 @app.post("/api/boards/{board_id}/ai/chat", response_model=AIChatResponse)

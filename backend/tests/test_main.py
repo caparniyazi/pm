@@ -282,6 +282,93 @@ class TestBoardContents:
         assert response.status_code == 400
 
 
+class TestCommentsAndActivity:
+    def _board_with_a_card(self, client: TestClient, headers: dict) -> tuple[str, str]:
+        board_id = first_board_id(client, headers)
+        board = client.get(f"/api/boards/{board_id}", headers=headers).json()
+        board["columns"][0]["cardIds"] = ["card-x"]
+        board["cards"]["card-x"] = {"id": "card-x", "title": "Draft", "details": ""}
+        assert (
+            client.put(f"/api/boards/{board_id}", headers=headers, json=board).status_code
+            == 200
+        )
+        return board_id, "card-x"
+
+    def test_comment_lifecycle_and_activity(self, client: TestClient) -> None:
+        headers = auth_headers(client, "alice")
+        board_id, card_id = self._board_with_a_card(client, headers)
+
+        created = client.post(
+            f"/api/boards/{board_id}/cards/{card_id}/comments",
+            headers=headers,
+            json={"body": "Needs review"},
+        )
+        assert created.status_code == 201, created.text
+        comment_id = created.json()["id"]
+        assert created.json()["author"] == "alice"
+
+        listed = client.get(f"/api/boards/{board_id}/comments", headers=headers)
+        assert [c["body"] for c in listed.json()] == ["Needs review"]
+
+        activity = client.get(f"/api/boards/{board_id}/activity", headers=headers).json()
+        assert activity[0]["kind"] == "comment_added"
+        # The card was created via PUT, so that is in the feed too.
+        assert any(entry["kind"] == "card_created" for entry in activity)
+
+        deleted = client.delete(
+            f"/api/boards/{board_id}/comments/{comment_id}", headers=headers
+        )
+        assert deleted.status_code == 204
+        assert client.get(f"/api/boards/{board_id}/comments", headers=headers).json() == []
+
+    def test_comment_on_missing_card_is_rejected(self, client: TestClient) -> None:
+        headers = auth_headers(client, "alice")
+        board_id = first_board_id(client, headers)
+
+        response = client.post(
+            f"/api/boards/{board_id}/cards/ghost/comments",
+            headers=headers,
+            json={"body": "hello"},
+        )
+        assert response.status_code == 400
+
+    def test_empty_comment_body_is_rejected(self, client: TestClient) -> None:
+        headers = auth_headers(client, "alice")
+        board_id, card_id = self._board_with_a_card(client, headers)
+
+        response = client.post(
+            f"/api/boards/{board_id}/cards/{card_id}/comments",
+            headers=headers,
+            json={"body": ""},
+        )
+        assert response.status_code == 422
+
+    def test_another_user_cannot_see_or_delete_comments(self, client: TestClient) -> None:
+        owner = auth_headers(client, "alice")
+        board_id, card_id = self._board_with_a_card(client, owner)
+        created = client.post(
+            f"/api/boards/{board_id}/cards/{card_id}/comments",
+            headers=owner,
+            json={"body": "private"},
+        ).json()
+
+        intruder = auth_headers(client, "mallory")
+        assert (
+            client.get(f"/api/boards/{board_id}/comments", headers=intruder).status_code
+            == 404
+        )
+        assert (
+            client.get(f"/api/boards/{board_id}/activity", headers=intruder).status_code
+            == 404
+        )
+        assert (
+            client.delete(
+                f"/api/boards/{board_id}/comments/{created['id']}", headers=intruder
+            ).status_code
+            == 404
+        )
+
+
 class TestAIChat:
     def test_ai_chat_reports_missing_key(self, client: TestClient) -> None:
         headers = auth_headers(client, "alice")

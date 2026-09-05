@@ -174,13 +174,38 @@
       "constraints": [
         "UNIQUE(column_id, position)"
       ]
+    },
+    "comments": {
+      "purpose": "User-authored comment threads attached to a card. card_id is a plain column, not a foreign key, because a full-board replace deletes and reinserts every card row.",
+      "columns": {
+        "id": {"type": "TEXT", "nullable": false, "primary_key": true},
+        "board_id": {"type": "TEXT", "nullable": false, "references": "boards.id", "on_delete": "CASCADE"},
+        "card_id": {"type": "TEXT", "nullable": false},
+        "user_id": {"type": "TEXT", "nullable": false, "references": "users.id", "on_delete": "CASCADE"},
+        "author": {"type": "TEXT", "nullable": false, "note": "username snapshot at creation time"},
+        "body": {"type": "TEXT", "nullable": false, "note": "1..2000 characters"},
+        "created_at": {"type": "TEXT", "nullable": false, "format": "ISO-8601 UTC timestamp"}
+      }
+    },
+    "activity": {
+      "purpose": "Append-only board activity feed. Card change entries are derived by diffing the board before and after each PUT; comment entries are written when a comment is added or deleted.",
+      "columns": {
+        "id": {"type": "TEXT", "nullable": false, "primary_key": true},
+        "board_id": {"type": "TEXT", "nullable": false, "references": "boards.id", "on_delete": "CASCADE"},
+        "card_id": {"type": "TEXT", "nullable": true, "note": "null for board-level entries such as column_renamed"},
+        "kind": {"type": "TEXT", "nullable": false, "enum": ["card_created", "card_edited", "card_moved", "card_deleted", "column_renamed", "comment_added", "comment_deleted"]},
+        "summary": {"type": "TEXT", "nullable": false, "note": "human-readable one-line description"},
+        "created_at": {"type": "TEXT", "nullable": false, "format": "ISO-8601 UTC timestamp"}
+      }
     }
   },
   "relationships": [
     "users 1-to-many sessions",
     "users 1-to-many boards",
     "boards 1-to-many columns",
-    "columns 1-to-many cards"
+    "columns 1-to-many cards",
+    "boards 1-to-many comments",
+    "boards 1-to-many activity"
   ],
   "board_payload": {
     "columns": [
@@ -214,6 +239,20 @@
     "title": "Board title",
     "updatedAt": "ISO-8601 UTC timestamp"
   },
+  "comment_payload": {
+    "id": "comment-id",
+    "cardId": "card-id",
+    "author": "username",
+    "body": "Comment text",
+    "createdAt": "ISO-8601 UTC timestamp"
+  },
+  "activity_payload": {
+    "id": "activity-id",
+    "kind": "card_moved",
+    "summary": "Moved \"Card\" from Backlog to Done",
+    "cardId": "card-id or null",
+    "createdAt": "ISO-8601 UTC timestamp"
+  },
   "invariants": [
     "Every session belongs to exactly one user and is deleted on logout or expiry.",
     "Every board belongs to exactly one user; a user may own any number of boards.",
@@ -224,7 +263,10 @@
     "The API returns columns ordered by position and cards ordered by position.",
     "Board mutations update updated_at and are committed atomically.",
     "A board's column set is fixed after creation; columns may be renamed but not added, removed, or re-identified.",
-    "A full-board replace preserves each card's created_at, matched by card id."
+    "A full-board replace preserves each card's created_at, matched by card id.",
+    "A full-board replace appends one activity row per detected change and deletes the comments of any card removed by that replace.",
+    "Comments and activity are read and written through dedicated /api/boards/{id} sub-resource routes, not the board content payload.",
+    "Only a comment's author can delete it."
   ],
   "mvp_seed": {
     "username": "user",

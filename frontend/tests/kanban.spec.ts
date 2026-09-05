@@ -151,6 +151,31 @@ test("adds a label, filters by it, and the label persists across reload", async 
   ).toBeVisible();
 });
 
+test("comments on a card and sees it recorded in the activity feed", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await resetBoard(page);
+  await signIn(page);
+  await expect(page.getByRole("heading", { name: "Kanban Studio" })).toBeVisible();
+
+  const card = page.getByTestId("card-card-1");
+  await card.getByRole("button", { name: /add comment/i }).click();
+  await card.getByLabel("New comment").fill("Blocked on design sign-off");
+  await card.getByRole("button", { name: "Comment" }).click();
+
+  await expect(card.getByText("Blocked on design sign-off")).toBeVisible();
+
+  const activity = page.getByTestId("activity-panel");
+  await activity.getByRole("button", { name: /activity/i }).click();
+  await expect(activity.getByText(/commented on "Align roadmap themes"/)).toBeVisible();
+
+  await page.reload();
+  await expect(
+    page.getByTestId("card-card-1").getByRole("button", { name: /comments \(1\)/i })
+  ).toBeVisible();
+});
+
 test("moves a card between columns", async ({ page }) => {
   await page.goto("/");
   await resetBoard(page);

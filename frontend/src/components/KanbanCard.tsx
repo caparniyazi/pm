@@ -3,18 +3,28 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import clsx from "clsx";
 import { normalizeLabels, type Card, type CardFields } from "@/lib/kanban";
+import type { Comment } from "@/lib/api";
 import {
   CardMetaBadges,
   CardMetaFields,
   LabelChips,
   LabelEditor,
 } from "@/components/CardMeta";
+import { CardComments } from "@/components/CardComments";
 import { PencilIcon, TrashIcon } from "@/components/icons";
+
+export type CardCommentsBridge = {
+  commentsByCard: Record<string, Comment[]>;
+  currentUsername?: string;
+  onAddComment: (cardId: string, body: string) => Promise<void> | void;
+  onDeleteComment?: (commentId: string) => Promise<void> | void;
+};
 
 type KanbanCardProps = {
   card: Card;
   onEdit: (cardId: string, fields: CardFields) => void;
   onDelete: (cardId: string) => void;
+  cardComments?: CardCommentsBridge;
 };
 
 const draftFrom = (card: Card): CardFields => ({
@@ -25,7 +35,12 @@ const draftFrom = (card: Card): CardFields => ({
   labels: card.labels ?? [],
 });
 
-export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
+export const KanbanCard = ({
+  card,
+  onEdit,
+  onDelete,
+  cardComments,
+}: KanbanCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id });
   const [isEditing, setIsEditing] = useState(false);
@@ -159,6 +174,19 @@ export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
           </button>
         </div>
       </div>
+      {cardComments && (
+        <div
+          onPointerDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <CardComments
+            comments={cardComments.commentsByCard[card.id] ?? []}
+            currentUsername={cardComments.currentUsername}
+            onAdd={(body) => cardComments.onAddComment(card.id, body)}
+            onDelete={(commentId) => cardComments.onDeleteComment?.(commentId)}
+          />
+        </div>
+      )}
     </article>
   );
 };

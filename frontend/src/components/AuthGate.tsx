@@ -3,15 +3,21 @@
 import { useEffect, useState } from "react";
 import {
   ApiError,
+  addComment as addCommentRequest,
   createBoard,
   deleteBoard,
+  deleteComment as deleteCommentRequest,
   fetchBoard,
   fetchCurrentUser,
+  listActivity,
   listBoards,
+  listComments,
   logout as logoutRequest,
   renameBoard,
   saveBoard,
+  type ActivityEntry,
   type BoardSummary,
+  type Comment,
   type User,
 } from "@/lib/api";
 import { clearToken, getStoredToken, storeToken } from "@/lib/auth";
@@ -29,6 +35,9 @@ export const AuthGate = () => {
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [board, setBoard] = useState<BoardData | null>(null);
   const [boardError, setBoardError] = useState("");
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [feedVersion, setFeedVersion] = useState(0);
 
   useEffect(() => {
     const token = getStoredToken();
@@ -118,6 +127,30 @@ export const AuthGate = () => {
     };
   }, [selectedBoardId]);
 
+  useEffect(() => {
+    if (!selectedBoardId) {
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all([listComments(selectedBoardId), listActivity(selectedBoardId)])
+      .then(([loadedComments, loadedActivity]) => {
+        if (!cancelled) {
+          setComments(loadedComments);
+          setActivity(loadedActivity);
+        }
+      })
+      .catch(() => {
+        // The board itself still loads; a stale feed is not worth an error banner.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBoardId, feedVersion]);
+
+  const refreshFeeds = () => setFeedVersion((version) => version + 1);
+
   const handleAuthenticated = (token: string, authenticatedUser: User) => {
     storeToken(token);
     setUser(authenticatedUser);
@@ -141,10 +174,29 @@ export const AuthGate = () => {
       const savedBoard = await saveBoard(selectedBoardId, nextBoard);
       setBoard(savedBoard);
       setBoardError("");
+      refreshFeeds(); // a board save may have generated activity entries
     } catch (error) {
       setBoardError("Unable to save that board change.");
       throw error; // let KanbanBoard roll back its optimistic state
     }
+  };
+
+  const handleAddComment = async (cardId: string, body: string) => {
+    if (!selectedBoardId) {
+      return;
+    }
+    const created = await addCommentRequest(selectedBoardId, cardId, body);
+    setComments((current) => [...current, created]);
+    refreshFeeds();
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!selectedBoardId) {
+      return;
+    }
+    await deleteCommentRequest(selectedBoardId, commentId);
+    setComments((current) => current.filter((comment) => comment.id !== commentId));
+    refreshFeeds();
   };
 
   const handleCreateBoard = async (title: string) => {
@@ -236,6 +288,11 @@ export const AuthGate = () => {
           title={currentBoardTitle}
           initialBoard={board}
           onBoardChange={handleBoardChange}
+          comments={comments}
+          activity={activity}
+          currentUsername={user.username}
+          onAddComment={handleAddComment}
+          onDeleteComment={handleDeleteComment}
           headerActions={
             <BoardSwitcher
               boards={boards}
@@ -248,7 +305,14 @@ export const AuthGate = () => {
           }
         />
       </div>
-      <ChatSidebar key={selectedBoardId} boardId={selectedBoardId} onBoardUpdate={setBoard} />
+      <ChatSidebar
+        key={selectedBoardId}
+        boardId={selectedBoardId}
+        onBoardUpdate={(updatedBoard) => {
+          setBoard(updatedBoard);
+          refreshFeeds();
+        }}
+      />
     </div>
   );
 };

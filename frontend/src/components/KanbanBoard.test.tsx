@@ -144,4 +144,43 @@ describe("KanbanBoard", () => {
     await userEvent.click(within(filter).getByRole("button", { name: /clear/i }));
     expect(screen.getByText("Align roadmap themes")).toBeInTheDocument();
   });
+
+  it("shows an activity panel and posts comments when the handlers are provided", async () => {
+    const onAddComment = vi.fn().mockResolvedValue(undefined);
+    render(
+      <KanbanBoard
+        onAddComment={onAddComment}
+        onDeleteComment={vi.fn()}
+        currentUsername="alice"
+        comments={[
+          {
+            id: "cmt-1",
+            cardId: "card-1",
+            author: "alice",
+            body: "Existing note",
+            createdAt: "2026-01-01T00:00:00Z",
+          },
+        ]}
+        activity={[
+          {
+            id: "act-1",
+            kind: "card_created",
+            summary: 'Added "Align roadmap themes" to Backlog',
+            cardId: "card-1",
+            createdAt: "2026-01-01T00:00:00Z",
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByTestId("activity-panel")).toBeInTheDocument();
+
+    const card = screen.getByTestId("card-card-1");
+    await userEvent.click(within(card).getByRole("button", { name: /comments \(1\)/i }));
+    expect(within(card).getByText("Existing note")).toBeInTheDocument();
+
+    await userEvent.type(within(card).getByLabelText("New comment"), "Another");
+    await userEvent.click(within(card).getByRole("button", { name: "Comment" }));
+    expect(onAddComment).toHaveBeenCalledWith("card-1", "Another");
+  });
 });

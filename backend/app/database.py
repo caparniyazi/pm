@@ -5,8 +5,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator
 
+from backend.app.activity import ActivityDiffEntry, diff_board_activity
 from backend.app.models import BoardData
 from backend.app.security import generate_id, generate_token, hash_password, verify_password
+
+
+ACTIVITY_FEED_LIMIT = 100
 
 
 SESSION_TTL_DAYS = 30
@@ -130,6 +134,25 @@ def initialize_database(database_path: str) -> None:
                 updated_at TEXT NOT NULL,
                 UNIQUE(column_id, position)
             );
+            CREATE TABLE IF NOT EXISTS comments (
+                id TEXT PRIMARY KEY,
+                board_id TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+                card_id TEXT NOT NULL,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                author TEXT NOT NULL,
+                body TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS activity (
+                id TEXT PRIMARY KEY,
+                board_id TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+                card_id TEXT,
+                kind TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_comments_board ON comments(board_id, card_id);
+            CREATE INDEX IF NOT EXISTS idx_activity_board ON activity(board_id, created_at);
             """
         )
         _add_missing_card_columns(connection)
@@ -330,28 +353,23 @@ def delete_board(database_path: str, user_id: str, board_id: str) -> bool:
     return True
 
 
-def read_board(database_path: str, user_id: str, board_id: str) -> BoardData | None:
-    with transaction(database_path) as connection:
-        board = connection.execute(
-            "SELECT id FROM boards WHERE id = ? AND user_id = ?", (board_id, user_id)
-        ).fetchone()
-        if board is None:
-            return None
-        columns = connection.execute(
-            "SELECT id, title FROM columns WHERE board_id = ? ORDER BY position",
-            (board["id"],),
-        ).fetchall()
-        cards = connection.execute(
-            """
-            SELECT cards.id, cards.title, cards.details, cards.priority,
-                   cards.due_date, cards.labels, cards.column_id
-            FROM cards
-            JOIN columns ON columns.id = cards.column_id
-            WHERE columns.board_id = ?
-            ORDER BY cards.column_id, cards.position
-            """,
-            (board["id"],),
-        ).fetchall()
+def _read_board_data(connection: sqlite3.Connection, board_id: str) -> BoardData:
+    """Build a BoardData from an open connection; the board is assumed to exist."""
+    columns = connection.execute(
+        "SELECT id, title FROM columns WHERE board_id = ? ORDER BY position",
+        (board_id,),
+    ).fetchall()
+    cards = connection.execute(
+        """
+        SELECT cards.id, cards.title, cards.details, cards.priority,
+               cards.due_date, cards.labels, cards.column_id
+        FROM cards
+        JOIN columns ON columns.id = cards.column_id
+        WHERE columns.board_id = ?
+        ORDER BY cards.column_id, cards.position
+        """,
+        (board_id,),
+    ).fetchall()
 
     cards_by_id = {
         card["id"]: {
@@ -380,6 +398,16 @@ def read_board(database_path: str, user_id: str, board_id: str) -> BoardData | N
     )
 
 
+def read_board(database_path: str, user_id: str, board_id: str) -> BoardData | None:
+    with transaction(database_path) as connection:
+        board = connection.execute(
+            "SELECT id FROM boards WHERE id = ? AND user_id = ?", (board_id, user_id)
+        ).fetchone()
+        if board is None:
+            return None
+        return _read_board_data(connection, board_id)
+
+
 def replace_board(
     database_path: str, user_id: str, board_id: str, board_data: BoardData
 ) -> BoardData | None:
@@ -399,6 +427,8 @@ def replace_board(
         validate_board(board_data)
         if existing_column_ids and {c.id for c in board_data.columns} != existing_column_ids:
             raise ValueError("Board columns can be renamed but not added or removed")
+
+        previous_board = _read_board_data(connection, board_id)
 
         created_at_by_card = {
             row["id"]: row["created_at"]
@@ -445,7 +475,56 @@ def replace_board(
         connection.execute(
             "UPDATE boards SET updated_at = ? WHERE id = ?", (timestamp, board_id)
         )
+
+        diff = diff_board_activity(previous_board, board_data)
+        _record_activity_entries(connection, board_id, diff, timestamp)
+        deleted_card_ids = [
+            entry.card_id
+            for entry in diff
+            if entry.kind == "card_deleted" and entry.card_id is not None
+        ]
+        if deleted_card_ids:
+            connection.executemany(
+                "DELETE FROM comments WHERE board_id = ? AND card_id = ?",
+                [(board_id, card_id) for card_id in deleted_card_ids],
+            )
     return board_data
+
+
+def _record_activity_entries(
+    connection: sqlite3.Connection,
+    board_id: str,
+    entries: list[ActivityDiffEntry],
+    timestamp: str,
+) -> None:
+    if not entries:
+        return
+    connection.executemany(
+        """
+        INSERT INTO activity (id, board_id, card_id, kind, summary, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (generate_id("act"), board_id, entry.card_id, entry.kind, entry.summary, timestamp)
+            for entry in entries
+        ],
+    )
+
+
+def _record_activity(
+    connection: sqlite3.Connection,
+    board_id: str,
+    kind: str,
+    summary: str,
+    card_id: str | None,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO activity (id, board_id, card_id, kind, summary, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (generate_id("act"), board_id, card_id, kind, summary, now()),
+    )
 
 
 def validate_board(board_data: BoardData) -> None:
@@ -459,3 +538,124 @@ def validate_board(board_data: BoardData) -> None:
         raise ValueError("Cards can appear in only one column")
     if set(referenced_card_ids) != set(board_data.cards):
         raise ValueError("Every card must appear in exactly one column")
+
+
+def _owned_board(connection: sqlite3.Connection, user_id: str, board_id: str):
+    return connection.execute(
+        "SELECT id FROM boards WHERE id = ? AND user_id = ?", (board_id, user_id)
+    ).fetchone()
+
+
+def _comment_row(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "cardId": row["card_id"],
+        "author": row["author"],
+        "body": row["body"],
+        "createdAt": row["created_at"],
+    }
+
+
+def list_comments(database_path: str, user_id: str, board_id: str) -> list[dict] | None:
+    with transaction(database_path) as connection:
+        if _owned_board(connection, user_id, board_id) is None:
+            return None
+        rows = connection.execute(
+            """
+            SELECT id, card_id, author, body, created_at
+            FROM comments WHERE board_id = ?
+            ORDER BY created_at, id
+            """,
+            (board_id,),
+        ).fetchall()
+    return [_comment_row(row) for row in rows]
+
+
+def add_comment(
+    database_path: str, user_id: str, board_id: str, card_id: str, body: str
+) -> dict | None:
+    with transaction(database_path) as connection:
+        if _owned_board(connection, user_id, board_id) is None:
+            return None
+        card = connection.execute(
+            """
+            SELECT cards.title FROM cards
+            JOIN columns ON columns.id = cards.column_id
+            WHERE columns.board_id = ? AND cards.id = ?
+            """,
+            (board_id, card_id),
+        ).fetchone()
+        if card is None:
+            raise ValueError("Card not found on this board")
+        author = connection.execute(
+            "SELECT username FROM users WHERE id = ?", (user_id,)
+        ).fetchone()["username"]
+        timestamp = now()
+        comment_id = generate_id("cmt")
+        connection.execute(
+            """
+            INSERT INTO comments (id, board_id, card_id, user_id, author, body, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (comment_id, board_id, card_id, user_id, author, body, timestamp),
+        )
+        _record_activity(
+            connection,
+            board_id,
+            "comment_added",
+            f'{author} commented on "{card["title"]}"',
+            card_id,
+        )
+    return {
+        "id": comment_id,
+        "cardId": card_id,
+        "author": author,
+        "body": body,
+        "createdAt": timestamp,
+    }
+
+
+def delete_comment(
+    database_path: str, user_id: str, board_id: str, comment_id: str
+) -> bool:
+    with transaction(database_path) as connection:
+        if _owned_board(connection, user_id, board_id) is None:
+            return False
+        row = connection.execute(
+            "SELECT card_id, user_id FROM comments WHERE id = ? AND board_id = ?",
+            (comment_id, board_id),
+        ).fetchone()
+        if row is None or row["user_id"] != user_id:
+            return False
+        connection.execute("DELETE FROM comments WHERE id = ?", (comment_id,))
+        _record_activity(
+            connection, board_id, "comment_deleted", "Deleted a comment", row["card_id"]
+        )
+    return True
+
+
+def list_activity(
+    database_path: str, user_id: str, board_id: str, limit: int = ACTIVITY_FEED_LIMIT
+) -> list[dict] | None:
+    with transaction(database_path) as connection:
+        if _owned_board(connection, user_id, board_id) is None:
+            return None
+        rows = connection.execute(
+            """
+            SELECT id, card_id, kind, summary, created_at
+            FROM activity WHERE board_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            (board_id, limit),
+        ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "cardId": row["card_id"],
+            "kind": row["kind"],
+            "summary": row["summary"],
+            "createdAt": row["created_at"],
+        }
+        for row in rows
+    ]

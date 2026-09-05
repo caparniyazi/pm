@@ -469,3 +469,76 @@ filter.
 - A card can be tagged with labels from the UI or the AI, the labels persist
   through a full-board replace, show as chips on the card, and the board can
   be filtered to the cards carrying a chosen label.
+
+## Part 14: Card comments and the board activity feed (2026-09-05)
+
+The first data that does not live in the full-board payload. Comments and an
+auto-generated activity log get dedicated `/api/boards/{id}` sub-resource
+routes.
+
+### Decisions
+
+- New tables `comments` and `activity`, both created with
+  `CREATE TABLE IF NOT EXISTS` (an existing local database picks them up on
+  the next start; no migration helper needed).
+- `comments.card_id` is a plain column, **not** a foreign key to `cards.id`,
+  because a full-board `PUT` deletes and reinserts every card row and a
+  cascade would wipe every thread on each save. Comments are scoped by
+  `(board_id, card_id)`; `replace_board` deletes comments only for the card
+  ids that its diff reports as removed. A comment stores an `author` username
+  snapshot; only the author may delete it (`comment_deleted` is logged).
+- Routes: `GET /api/boards/{id}/comments` (flat, oldest first),
+  `POST /api/boards/{id}/cards/{cardId}/comments` (400 if the card is not on
+  the board, 422 on an empty body, max 2000 chars),
+  `DELETE /api/boards/{id}/comments/{commentId}` (author-only, 404 otherwise),
+  `GET /api/boards/{id}/activity` (newest first, capped at 100). All resolve
+  the board through the same `(user_id, board_id)` ownership check, so one
+  user never sees another's comments or activity.
+- `backend/app/activity.py` `diff_board_activity(old, new)` is a pure function
+  that turns a before/after `BoardData` pair into ordered entries:
+  `column_renamed`, then `card_created` / `card_moved` / `card_edited` in the
+  new board's reading order, then `card_deleted`. Move detection compares
+  column **id** (so renaming a column does not read as every card moving);
+  a title change reads as `Renamed "old" to "new"`. `replace_board` snapshots
+  the old board with a new `_read_board_data` helper (also now used by
+  `read_board`), runs the diff, and appends the rows in the same transaction.
+- Frontend: `AuthGate` loads both feeds per board and bumps a `feedVersion`
+  counter after any board save, AI update, or comment mutation to refetch.
+  New `CardComments` (collapsible per-card thread, author-only delete) is
+  threaded through `KanbanBoard` -> `KanbanColumn` -> `KanbanCard`; a
+  pointer/keydown `stopPropagation` wrapper keeps typing from starting a
+  drag. New `ActivityPanel` (collapsible) renders above the label filter.
+  `src/lib/datetime.ts` `formatTimestamp` renders UTC deterministically.
+
+### Checklist
+
+- [x] `comments` / `activity` tables; `add_comment`, `list_comments`,
+      `delete_comment`, `list_activity`, `_read_board_data`, activity
+      recording in `replace_board` (+ deleted-card comment pruning).
+- [x] `diff_board_activity` pure module.
+- [x] Four sub-resource routes with ownership isolation.
+- [x] Frontend api client, `CardComments`, `ActivityPanel`, `AuthGate`
+      wiring, `formatTimestamp`.
+- [x] Docs: `database-schema.json`, `DATABASE.md`, `CLAUDE.md`.
+
+### Tests and checks
+
+- [x] Backend: `uv run pytest` (80 tests) - `test_activity.py` diff cases,
+      database comment CRUD / ownership / author-only delete / activity
+      generation / comment pruning on card delete, and route tests covering
+      the full comment lifecycle, the activity feed, empty-body rejection,
+      and cross-user isolation (404).
+- [x] Frontend unit: `npm run test:unit` (52 tests) - `CardComments` (toggle,
+      trimmed submit, author-only delete), `ActivityPanel` (collapsed default,
+      empty state, UTC timestamp), `KanbanBoard` comment + activity
+      integration, and api client calls for all four routes.
+- [x] `npm run lint` and `npm run build` clean.
+- [x] Playwright: a spec that comments on a card, sees the entry in the
+      activity feed, and reloads to confirm the comment count persists.
+
+### Success criteria
+
+- A user can comment on any card on their board, delete their own comments,
+  and watch every board change (create / edit / move / delete / column
+  rename) and comment appear in a newest-first activity feed, with all of it
+  private to the board owner.

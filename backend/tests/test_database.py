@@ -3,14 +3,18 @@ from pathlib import Path
 import pytest
 
 from backend.app.database import (
+    add_comment,
     authenticate_user,
     create_board,
     create_session,
     create_user,
     delete_board,
+    delete_comment,
     delete_session,
     initialize_database,
+    list_activity,
     list_boards,
+    list_comments,
     read_board,
     rename_board,
     replace_board,
@@ -249,6 +253,83 @@ class TestMultipleBoards:
         board_id = list_boards(database_path, user_id)[0]["id"]
 
         assert delete_board(database_path, other_id, board_id) is False
+
+
+class TestCommentsAndActivity:
+    def _setup(self, tmp_path: Path):
+        database_path = str(tmp_path / "pm.sqlite3")
+        initialize_database(database_path)
+        board_id = list_boards(database_path, "user-1")[0]["id"]
+        board = read_board(database_path, "user-1", board_id)
+        card_id = board.columns[0].cardIds[0]
+        return database_path, board_id, card_id, board
+
+    def test_add_and_list_comments(self, tmp_path: Path) -> None:
+        database_path, board_id, card_id, _ = self._setup(tmp_path)
+
+        created = add_comment(database_path, "user-1", board_id, card_id, "First note")
+        assert created is not None
+        assert created["author"] == "user"
+        assert created["cardId"] == card_id
+
+        comments = list_comments(database_path, "user-1", board_id)
+        assert [comment["body"] for comment in comments] == ["First note"]
+
+    def test_add_comment_records_activity(self, tmp_path: Path) -> None:
+        database_path, board_id, card_id, _ = self._setup(tmp_path)
+
+        add_comment(database_path, "user-1", board_id, card_id, "Looks good")
+
+        activity = list_activity(database_path, "user-1", board_id)
+        assert activity[0]["kind"] == "comment_added"
+        assert activity[0]["cardId"] == card_id
+
+    def test_add_comment_rejects_unknown_card(self, tmp_path: Path) -> None:
+        database_path, board_id, _, _ = self._setup(tmp_path)
+
+        with pytest.raises(ValueError, match="Card not found"):
+            add_comment(database_path, "user-1", board_id, "ghost-card", "hi")
+
+    def test_comments_are_scoped_to_the_owner(self, tmp_path: Path) -> None:
+        database_path, board_id, card_id, _ = self._setup(tmp_path)
+        other_id = create_user(database_path, "mallory", "password123")
+
+        assert add_comment(database_path, other_id, board_id, card_id, "peek") is None
+        assert list_comments(database_path, other_id, board_id) is None
+
+    def test_only_the_author_can_delete_a_comment(self, tmp_path: Path) -> None:
+        database_path, board_id, card_id, _ = self._setup(tmp_path)
+        created = add_comment(database_path, "user-1", board_id, card_id, "mine")
+        other_id = create_user(database_path, "mallory", "password123")
+
+        assert delete_comment(database_path, other_id, board_id, created["id"]) is False
+        assert delete_comment(database_path, "user-1", board_id, created["id"]) is True
+        assert list_comments(database_path, "user-1", board_id) == []
+
+    def test_replace_board_records_a_diff_and_prunes_deleted_card_comments(
+        self, tmp_path: Path
+    ) -> None:
+        database_path, board_id, card_id, board = self._setup(tmp_path)
+        add_comment(database_path, "user-1", board_id, card_id, "keep me?")
+
+        board.columns[0].title = "Ideas"
+        board.cards[card_id].priority = "low"
+        removed = board.columns[0].cardIds.pop()
+        del board.cards[removed]
+        replace_board(database_path, "user-1", board_id, board)
+
+        kinds = {entry["kind"] for entry in list_activity(database_path, "user-1", board_id)}
+        assert {"column_renamed", "card_edited", "card_deleted"} <= kinds
+
+        # The commented card is still on the board, so its comment survives.
+        assert len(list_comments(database_path, "user-1", board_id)) == 1
+
+        # Now delete the commented card too; its comment is pruned.
+        board = read_board(database_path, "user-1", board_id)
+        board.columns[0].cardIds.remove(card_id)
+        del board.cards[card_id]
+        replace_board(database_path, "user-1", board_id, board)
+        assert list_comments(database_path, "user-1", board_id) == []
 
 
 def test_outdated_schema_is_reset_automatically(tmp_path: Path) -> None:

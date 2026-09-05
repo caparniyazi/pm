@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import type { Card, CardFields, Column } from "@/lib/kanban";
-import { KanbanCard } from "@/components/KanbanCard";
+import { KanbanCard, type CardCommentsBridge } from "@/components/KanbanCard";
 import { NewCardForm } from "@/components/NewCardForm";
 
 type KanbanColumnProps = {
@@ -12,6 +12,7 @@ type KanbanColumnProps = {
   onAddCard: (columnId: string, fields: CardFields) => void;
   onEditCard: (cardId: string, fields: CardFields) => void;
   onDeleteCard: (columnId: string, cardId: string) => void;
+  cardComments?: CardCommentsBridge;
 };
 
 export const KanbanColumn = ({
@@ -21,6 +22,7 @@ export const KanbanColumn = ({
   onAddCard,
   onEditCard,
   onDeleteCard,
+  cardComments,
 }: KanbanColumnProps) => {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
@@ -57,6 +59,7 @@ export const KanbanColumn = ({
               card={card}
               onEdit={onEditCard}
               onDelete={(cardId) => onDeleteCard(column.id, cardId)}
+              cardComments={cardComments}
             />
           ))}
         </SortableContext>

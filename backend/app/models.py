@@ -90,3 +90,36 @@ class UserPublic(BaseModel):
 class AuthResponse(BaseModel):
     token: str
     user: UserPublic
+
+
+MAX_COMMENT_LENGTH = 2000
+
+ActivityKind = Literal[
+    "card_created",
+    "card_edited",
+    "card_moved",
+    "card_deleted",
+    "column_renamed",
+    "comment_added",
+    "comment_deleted",
+]
+
+
+class CreateCommentRequest(BaseModel):
+    body: str = Field(min_length=1, max_length=MAX_COMMENT_LENGTH)
+
+
+class Comment(BaseModel):
+    id: str
+    cardId: str
+    author: str
+    body: str
+    createdAt: str
+
+
+class ActivityEntry(BaseModel):
+    id: str
+    kind: ActivityKind
+    summary: str
+    cardId: str | None = None
+    createdAt: str

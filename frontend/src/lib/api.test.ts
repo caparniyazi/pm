@@ -1,9 +1,13 @@
 import {
+  addComment,
   askAI,
   createBoard,
   deleteBoard,
+  deleteComment,
   fetchBoard,
+  listActivity,
   listBoards,
+  listComments,
   login,
   register,
   renameBoard,
@@ -152,5 +156,46 @@ describe("board API", () => {
         }),
       })
     );
+  });
+
+  it("reads comments and activity and posts a new comment", async () => {
+    storeToken("my-token");
+    const fetchMock = vi
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "cmt-1",
+            cardId: "card-1",
+            author: "alice",
+            body: "Nice",
+            createdAt: "2026-01-01T00:00:00Z",
+          }),
+          { status: 201 }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await listComments("board-1");
+    await listActivity("board-1");
+    const created = await addComment("board-1", "card-1", "Nice");
+    await deleteComment("board-1", "cmt-1");
+
+    expect(created.id).toBe("cmt-1");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/boards/board-1/comments");
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/boards/board-1/activity");
+    expect(fetchMock.mock.calls[2]).toEqual([
+      "/api/boards/board-1/cards/card-1/comments",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ body: "Nice" }),
+      }),
+    ]);
+    expect(fetchMock.mock.calls[3]).toEqual([
+      "/api/boards/board-1/comments/cmt-1",
+      expect.objectContaining({ method: "DELETE" }),
+    ]);
   });
 });

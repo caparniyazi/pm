@@ -17,6 +17,8 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
 import { LabelChips } from "@/components/CardMeta";
+import { ActivityPanel } from "@/components/ActivityPanel";
+import type { ActivityEntry, Comment } from "@/lib/api";
 import {
   createId,
   initialData,
@@ -25,7 +27,15 @@ import {
   type CardFields,
 } from "@/lib/kanban";
 
-type KanbanBoardProps = {
+export type CardCommentHandlers = {
+  comments?: Comment[];
+  activity?: ActivityEntry[];
+  currentUsername?: string;
+  onAddComment?: (cardId: string, body: string) => Promise<void> | void;
+  onDeleteComment?: (commentId: string) => Promise<void> | void;
+};
+
+type KanbanBoardProps = CardCommentHandlers & {
   initialBoard?: BoardData;
   onBoardChange?: (board: BoardData) => void | Promise<void>;
   title?: string;
@@ -39,6 +49,11 @@ export const KanbanBoard = ({
   onBoardChange,
   title = "Kanban Studio",
   headerActions,
+  comments,
+  activity,
+  currentUsername,
+  onAddComment,
+  onDeleteComment,
 }: KanbanBoardProps) => {
   const [board, setBoard] = useState<BoardData>(() => initialBoard);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
@@ -134,6 +149,23 @@ export const KanbanBoard = ({
         : [...current, label]
     );
   };
+
+  const commentsByCard = useMemo(() => {
+    const grouped: Record<string, Comment[]> = {};
+    for (const comment of comments ?? []) {
+      (grouped[comment.cardId] ??= []).push(comment);
+    }
+    return grouped;
+  }, [comments]);
+
+  const cardComments = onAddComment
+    ? {
+        commentsByCard,
+        currentUsername,
+        onAddComment,
+        onDeleteComment,
+      }
+    : undefined;
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveCardId(event.active.id as string);
@@ -241,6 +273,8 @@ export const KanbanBoard = ({
           )}
         </header>
 
+        {activity && <ActivityPanel activity={activity} />}
+
         {allLabels.length > 0 && (
           <div
             className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--stroke)] bg-white/70 px-5 py-3"
@@ -285,6 +319,7 @@ export const KanbanBoard = ({
                   onAddCard={handleAddCard}
                   onEditCard={handleEditCard}
                   onDeleteCard={handleDeleteCard}
+                  cardComments={cardComments}
                 />
               </div>
             ))}
