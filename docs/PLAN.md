@@ -412,3 +412,60 @@ metadata beyond free-text details.
 - A card can be given a priority and a due date from the UI or the AI, the
   values persist through a full-board replace, and they are shown as badges
   on the board.
+
+## Part 13: Card labels / tags and label filtering (2026-09-05)
+
+Second increment of card richness: free-form labels plus a board-level
+filter.
+
+### Decisions
+
+- `Card` gains `labels: list[str]`, always serialized (defaults to `[]`), so
+  the card wire shape is `{ id, title, details, priority, dueDate, labels }`.
+  Frontend `Card.labels` stays optional.
+- Labels are normalized by a shared `normalize_labels` in `models.py`
+  (mirrored by `normalizeLabels` in `kanban.ts`): trim, drop
+  case-insensitive duplicates keeping first spelling, reject empty / over
+  32 chars (backend) or truncate to 32 (frontend), cap at 10 per card.
+- Stored as a JSON text column `cards.labels` (`NOT NULL DEFAULT '[]'`),
+  read with `json.loads` / written with `json.dumps` in `read_board` /
+  `replace_board`. Added to an existing local database by the same startup
+  `ALTER TABLE` helper used for priority / due_date.
+- AI `create_card` accepts `labels` (defaults `[]`); `edit_card` accepts
+  `labels: list[str] | None` where `None` keeps the existing labels and `[]`
+  clears them.
+- UI: a reusable `LabelChips` (display / toggle) and `LabelEditor`
+  (type-to-add with Enter or comma, Backspace to remove last, per-chip
+  remove) in `CardMeta.tsx`, wired into `NewCardForm` and `KanbanCard`.
+  `KanbanBoard` shows a "Filter by label" bar built from all labels on the
+  board; selecting labels hides cards that carry none of them (OR match).
+  Drag/drop and the AI still operate on the full board.
+
+### Checklist
+
+- [x] Backend `Card.labels` + `normalize_labels`, `cards.labels` column +
+      startup migration, `read_board` / `replace_board` round-trip, seed
+      data labels.
+- [x] AI `create_card` / `edit_card` carry labels (with the None-vs-[] edit
+      semantics).
+- [x] Frontend types (`Card`, `CardFields`, `normalizeLabels`), `CardMeta`
+      `LabelChips` / `LabelEditor`, forms, and the `KanbanBoard` filter bar.
+- [x] Docs: `database-schema.json`, `DATABASE.md`, `CLAUDE.md`.
+
+### Tests and checks
+
+- [x] Backend: `uv run pytest` (65 tests) - contract field names + label
+      trimming/dedup, database round-trip and seeded labels, and AI
+      create/edit carry, clear, and leave-untouched semantics.
+- [x] Frontend unit: `npm run test:unit` (45 tests) - `normalizeLabels`
+      rules, adding a label through the edit form, and filtering the board
+      by a selected label.
+- [x] `npm run lint` and `npm run build` clean.
+- [x] Playwright: a spec that adds a label, filters by it, and reloads to
+      confirm persistence.
+
+### Success criteria
+
+- A card can be tagged with labels from the UI or the AI, the labels persist
+  through a full-board replace, show as chips on the card, and the board can
+  be filtered to the cards carrying a chosen label.

@@ -1,4 +1,4 @@
-import { moveCard, type Column } from "@/lib/kanban";
+import { moveCard, normalizeLabels, type Column } from "@/lib/kanban";
 
 describe("moveCard", () => {
   const baseColumns: Column[] = [
@@ -21,5 +21,25 @@ describe("moveCard", () => {
     const result = moveCard(baseColumns, "card-1", "col-b");
     expect(result[0].cardIds).toEqual(["card-2"]);
     expect(result[1].cardIds).toEqual(["card-3", "card-1"]);
+  });
+});
+
+describe("normalizeLabels", () => {
+  it("trims and drops case-insensitive duplicates", () => {
+    expect(normalizeLabels(["  Bug ", "bug", "urgent"])).toEqual([
+      "Bug",
+      "urgent",
+    ]);
+  });
+
+  it("removes empty entries and caps the count at ten", () => {
+    const many = Array.from({ length: 15 }, (_, index) => `label-${index}`);
+    expect(normalizeLabels(["", "  ", "keep"])).toEqual(["keep"]);
+    expect(normalizeLabels(many)).toHaveLength(10);
+  });
+
+  it("truncates a label to the maximum length", () => {
+    const [label] = normalizeLabels(["x".repeat(50)]);
+    expect(label).toHaveLength(32);
   });
 });

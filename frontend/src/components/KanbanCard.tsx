@@ -2,8 +2,13 @@ import { useState, type FormEvent } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import clsx from "clsx";
-import type { Card, CardFields } from "@/lib/kanban";
-import { CardMetaBadges, CardMetaFields } from "@/components/CardMeta";
+import { normalizeLabels, type Card, type CardFields } from "@/lib/kanban";
+import {
+  CardMetaBadges,
+  CardMetaFields,
+  LabelChips,
+  LabelEditor,
+} from "@/components/CardMeta";
 import { PencilIcon, TrashIcon } from "@/components/icons";
 
 type KanbanCardProps = {
@@ -17,6 +22,7 @@ const draftFrom = (card: Card): CardFields => ({
   details: card.details,
   priority: card.priority ?? null,
   dueDate: card.dueDate ?? null,
+  labels: card.labels ?? [],
 });
 
 export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
@@ -36,7 +42,12 @@ export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
     if (!title) {
       return;
     }
-    onEdit(card.id, { ...draft, title, details: draft.details.trim() });
+    onEdit(card.id, {
+      ...draft,
+      title,
+      details: draft.details.trim(),
+      labels: normalizeLabels(draft.labels),
+    });
     setIsEditing(false);
   };
 
@@ -73,6 +84,10 @@ export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
             setDraft((prev) => ({ ...prev, priority }))
           }
           onDueDateChange={(dueDate) => setDraft((prev) => ({ ...prev, dueDate }))}
+        />
+        <LabelEditor
+          labels={draft.labels}
+          onChange={(labels) => setDraft((prev) => ({ ...prev, labels }))}
         />
         <div className="flex items-center gap-2">
           <button
@@ -118,6 +133,7 @@ export const KanbanCard = ({ card, onEdit, onDelete }: KanbanCardProps) => {
             {card.details}
           </p>
           <CardMetaBadges priority={card.priority} dueDate={card.dueDate} />
+          <LabelChips labels={card.labels ?? []} className="mt-2" />
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button

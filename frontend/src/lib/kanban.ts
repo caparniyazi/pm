@@ -2,12 +2,16 @@ export type Priority = "low" | "medium" | "high";
 
 export const PRIORITIES: Priority[] = ["low", "medium", "high"];
 
+export const MAX_LABELS_PER_CARD = 10;
+export const MAX_LABEL_LENGTH = 32;
+
 export type Card = {
   id: string;
   title: string;
   details: string;
   priority?: Priority | null;
   dueDate?: string | null;
+  labels?: string[];
 };
 
 // Fields an add/edit card form collects, kept together so the callback
@@ -17,6 +21,26 @@ export type CardFields = {
   details: string;
   priority: Priority | null;
   dueDate: string | null;
+  labels: string[];
+};
+
+// Trim, drop case-insensitive duplicates, and bound a label list. Mirrors
+// backend/app/models.py normalize_labels so both sides store the same form.
+export const normalizeLabels = (labels: string[]): string[] => {
+  const cleaned: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of labels) {
+    const label = raw.trim().slice(0, MAX_LABEL_LENGTH);
+    if (!label || seen.has(label.toLowerCase())) {
+      continue;
+    }
+    seen.add(label.toLowerCase());
+    cleaned.push(label);
+    if (cleaned.length === MAX_LABELS_PER_CARD) {
+      break;
+    }
+  }
+  return cleaned;
 };
 
 export type Column = {
@@ -48,30 +72,35 @@ export const initialData: BoardData = {
       title: "Align roadmap themes",
       details: "Draft quarterly themes with impact statements and metrics.",
       priority: "high",
+      labels: ["planning", "roadmap"],
     },
     "card-2": {
       id: "card-2",
       title: "Gather customer signals",
       details: "Review support tags, sales notes, and churn feedback.",
       priority: "medium",
+      labels: ["research"],
     },
     "card-3": {
       id: "card-3",
       title: "Prototype analytics view",
       details: "Sketch initial dashboard layout and key drill-downs.",
       priority: "medium",
+      labels: ["design", "analytics"],
     },
     "card-4": {
       id: "card-4",
       title: "Refine status language",
       details: "Standardize column labels and tone across the board.",
       priority: "low",
+      labels: ["content"],
     },
     "card-5": {
       id: "card-5",
       title: "Design card layout",
       details: "Add hierarchy and spacing for scanning dense lists.",
       priority: "high",
+      labels: ["design"],
     },
     "card-6": {
       id: "card-6",

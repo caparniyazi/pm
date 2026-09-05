@@ -16,6 +16,7 @@ import type { ReactNode } from "react";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
+import { LabelChips } from "@/components/CardMeta";
 import {
   createId,
   initialData,
@@ -41,6 +42,7 @@ export const KanbanBoard = ({
 }: KanbanBoardProps) => {
   const [board, setBoard] = useState<BoardData>(() => initialBoard);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [labelFilter, setLabelFilter] = useState<string[]>([]);
   const renameTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reconcile with the controlled source of truth (save echo, AI updates).
@@ -95,6 +97,43 @@ export const KanbanBoard = ({
   );
 
   const cardsById = useMemo(() => board.cards, [board.cards]);
+
+  const allLabels = useMemo(() => {
+    const labels = new Set<string>();
+    for (const card of Object.values(board.cards)) {
+      for (const label of card.labels ?? []) {
+        labels.add(label);
+      }
+    }
+    return [...labels].sort((a, b) => a.localeCompare(b));
+  }, [board.cards]);
+
+  // Ignore filter entries whose label no longer exists on the board.
+  const activeFilter = useMemo(
+    () => labelFilter.filter((label) => allLabels.includes(label)),
+    [labelFilter, allLabels]
+  );
+
+  const visibleColumns = useMemo(() => {
+    if (activeFilter.length === 0) {
+      return board.columns;
+    }
+    const wanted = new Set(activeFilter);
+    return board.columns.map((column) => ({
+      ...column,
+      cardIds: column.cardIds.filter((cardId) =>
+        (board.cards[cardId]?.labels ?? []).some((label) => wanted.has(label))
+      ),
+    }));
+  }, [board.columns, board.cards, activeFilter]);
+
+  const toggleLabelFilter = (label: string) => {
+    setLabelFilter((current) =>
+      current.includes(label)
+        ? current.filter((item) => item !== label)
+        : [...current, label]
+    );
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveCardId(event.active.id as string);
@@ -202,6 +241,31 @@ export const KanbanBoard = ({
           )}
         </header>
 
+        {allLabels.length > 0 && (
+          <div
+            className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--stroke)] bg-white/70 px-5 py-3"
+            data-testid="label-filter"
+          >
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
+              Filter by label
+            </span>
+            <LabelChips
+              labels={allLabels}
+              activeLabels={activeFilter}
+              onToggle={toggleLabelFilter}
+            />
+            {activeFilter.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setLabelFilter([])}
+                className="text-xs font-semibold uppercase tracking-wide text-[var(--primary-blue)] transition hover:text-[var(--secondary-purple)]"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
@@ -209,7 +273,7 @@ export const KanbanBoard = ({
           onDragEnd={handleDragEnd}
         >
           <section className="flex flex-1 items-stretch gap-4 overflow-x-auto pb-2">
-            {board.columns.map((column) => (
+            {visibleColumns.map((column) => (
               <div
                 key={column.id}
                 className="w-[300px] shrink-0 md:w-[320px] lg:w-0 lg:min-w-[210px] lg:flex-1 lg:shrink"

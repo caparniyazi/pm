@@ -17,7 +17,12 @@ const seedBoard = {
     { id: "col-done", title: "Done", cardIds: ["card-7", "card-8"] },
   ],
   cards: {
-    "card-1": { id: "card-1", title: "Align roadmap themes", details: "Seed." },
+    "card-1": {
+      id: "card-1",
+      title: "Align roadmap themes",
+      details: "Seed.",
+      labels: ["planning"],
+    },
     "card-2": { id: "card-2", title: "Gather customer signals", details: "Seed." },
     "card-3": { id: "card-3", title: "Prototype analytics view", details: "Seed." },
     "card-4": { id: "card-4", title: "Refine status language", details: "Seed." },
@@ -117,6 +122,33 @@ test("sets a card priority and due date that persist across reload", async ({
   const reloaded = page.getByTestId("card-card-1");
   await expect(reloaded.getByText("high")).toBeVisible();
   await expect(reloaded.getByText("Due 31 Dec 2026")).toBeVisible();
+});
+
+test("adds a label, filters by it, and the label persists across reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await resetBoard(page);
+  await signIn(page);
+  await expect(page.getByRole("heading", { name: "Kanban Studio" })).toBeVisible();
+
+  const card = page.getByTestId("card-card-2");
+  await card.getByRole("button", { name: /edit gather customer signals/i }).click();
+  await card.getByLabel("Add label").fill("backend");
+  await card.getByLabel("Add label").press("Enter");
+  await card.getByRole("button", { name: "Save" }).click();
+  await expect(card.getByText("backend")).toBeVisible();
+
+  const filter = page.getByTestId("label-filter");
+  await filter.getByRole("button", { name: "backend" }).click();
+  await expect(page.getByTestId("card-card-2")).toBeVisible();
+  await expect(page.getByTestId("card-card-1")).toHaveCount(0);
+  await filter.getByRole("button", { name: "Clear" }).click();
+
+  await page.reload();
+  await expect(
+    page.getByTestId("card-card-2").getByText("backend")
+  ).toBeVisible();
 });
 
 test("moves a card between columns", async ({ page }) => {

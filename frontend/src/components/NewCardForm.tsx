@@ -1,13 +1,14 @@
 import { useState, type FormEvent } from "react";
 import { PlusIcon } from "@/components/icons";
-import { CardMetaFields } from "@/components/CardMeta";
-import type { CardFields, Priority } from "@/lib/kanban";
+import { CardMetaFields, LabelEditor } from "@/components/CardMeta";
+import { normalizeLabels, type CardFields, type Priority } from "@/lib/kanban";
 
 const initialFormState = {
   title: "",
   details: "",
   priority: null as Priority | null,
   dueDate: null as string | null,
+  labels: [] as string[],
 };
 
 type NewCardFormProps = {
@@ -28,6 +29,7 @@ export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
       details: formState.details.trim(),
       priority: formState.priority,
       dueDate: formState.dueDate,
+      labels: normalizeLabels(formState.labels),
     });
     setFormState(initialFormState);
     setIsOpen(false);
@@ -64,6 +66,10 @@ export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
             onDueDateChange={(dueDate) =>
               setFormState((prev) => ({ ...prev, dueDate }))
             }
+          />
+          <LabelEditor
+            labels={formState.labels}
+            onChange={(labels) => setFormState((prev) => ({ ...prev, labels }))}
           />
           <div className="flex items-center gap-2">
             <button

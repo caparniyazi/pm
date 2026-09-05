@@ -17,6 +17,7 @@ SAMPLE = {
             "details": "Notes",
             "priority": "high",
             "dueDate": "2026-01-31",
+            "labels": ["research", "q1"],
         }
     },
 }
@@ -34,6 +35,7 @@ def test_board_payload_field_names_are_stable() -> None:
         "details",
         "priority",
         "dueDate",
+        "labels",
     }
 
 
@@ -47,6 +49,25 @@ def test_card_metadata_defaults_to_null() -> None:
 
     assert dumped["cards"]["card-1"]["priority"] is None
     assert dumped["cards"]["card-1"]["dueDate"] is None
+    assert dumped["cards"]["card-1"]["labels"] == []
+
+
+def test_card_labels_are_trimmed_and_deduplicated() -> None:
+    card = BoardData.model_validate(
+        {
+            "columns": [{"id": "col-a", "title": "A", "cardIds": ["card-1"]}],
+            "cards": {
+                "card-1": {
+                    "id": "card-1",
+                    "title": "First",
+                    "details": "",
+                    "labels": ["  bug ", "Bug", "urgent"],
+                }
+            },
+        }
+    ).cards["card-1"]
+
+    assert card.labels == ["bug", "urgent"]
 
 
 def test_documented_schema_example_matches_model() -> None:

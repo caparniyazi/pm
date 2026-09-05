@@ -112,4 +112,36 @@ describe("KanbanBoard", () => {
       within(card as HTMLElement).queryByText("medium")
     ).not.toBeInTheDocument();
   });
+
+  it("adds a label to a card through the edit form", async () => {
+    render(<KanbanBoard />);
+    const column = getFirstColumn();
+
+    await userEvent.click(
+      within(column).getByRole("button", { name: /edit gather customer signals/i })
+    );
+    const labelInput = within(column).getByLabelText("Add label");
+    await userEvent.type(labelInput, "backend{Enter}");
+    await userEvent.click(within(column).getByRole("button", { name: /save/i }));
+
+    const card = within(column)
+      .getByText("Gather customer signals")
+      .closest("article") as HTMLElement;
+    expect(within(card).getByText("backend")).toBeInTheDocument();
+  });
+
+  it("filters the board to cards carrying a selected label", async () => {
+    render(<KanbanBoard />);
+    const filter = screen.getByTestId("label-filter");
+
+    await userEvent.click(within(filter).getByRole("button", { name: "research" }));
+
+    // card-2 carries "research"; card-1 and card-3 do not.
+    expect(screen.getByText("Gather customer signals")).toBeInTheDocument();
+    expect(screen.queryByText("Align roadmap themes")).not.toBeInTheDocument();
+    expect(screen.queryByText("Prototype analytics view")).not.toBeInTheDocument();
+
+    await userEvent.click(within(filter).getByRole("button", { name: /clear/i }));
+    expect(screen.getByText("Align roadmap themes")).toBeInTheDocument();
+  });
 });

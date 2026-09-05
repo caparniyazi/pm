@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -12,16 +13,16 @@ SESSION_TTL_DAYS = 30
 
 DEFAULT_COLUMN_TITLES = ["Backlog", "Discovery", "In Progress", "Review", "Done"]
 
-# (id, title, details, column_index, priority, due_date)
+# (id, title, details, column_index, priority, due_date, labels)
 INITIAL_CARDS = [
-    ("card-1", "Align roadmap themes", "Draft quarterly themes with impact statements and metrics.", 0, "high", None),
-    ("card-2", "Gather customer signals", "Review support tags, sales notes, and churn feedback.", 0, "medium", None),
-    ("card-3", "Prototype analytics view", "Sketch initial dashboard layout and key drill-downs.", 1, "medium", None),
-    ("card-4", "Refine status language", "Standardize column labels and tone across the board.", 2, "low", None),
-    ("card-5", "Design card layout", "Add hierarchy and spacing for scanning dense lists.", 2, "high", None),
-    ("card-6", "QA micro-interactions", "Verify hover, focus, and loading states.", 3, None, None),
-    ("card-7", "Ship marketing page", "Final copy approved and asset pack delivered.", 4, None, None),
-    ("card-8", "Close onboarding sprint", "Document release notes and share internally.", 4, None, None),
+    ("card-1", "Align roadmap themes", "Draft quarterly themes with impact statements and metrics.", 0, "high", None, ["planning", "roadmap"]),
+    ("card-2", "Gather customer signals", "Review support tags, sales notes, and churn feedback.", 0, "medium", None, ["research"]),
+    ("card-3", "Prototype analytics view", "Sketch initial dashboard layout and key drill-downs.", 1, "medium", None, ["design", "analytics"]),
+    ("card-4", "Refine status language", "Standardize column labels and tone across the board.", 2, "low", None, ["content"]),
+    ("card-5", "Design card layout", "Add hierarchy and spacing for scanning dense lists.", 2, "high", None, ["design"]),
+    ("card-6", "QA micro-interactions", "Verify hover, focus, and loading states.", 3, None, None, ["qa"]),
+    ("card-7", "Ship marketing page", "Final copy approved and asset pack delivered.", 4, None, None, ["marketing"]),
+    ("card-8", "Close onboarding sprint", "Document release notes and share internally.", 4, None, None, []),
 ]
 
 
@@ -70,12 +71,16 @@ def _reset_outdated_schema(connection: sqlite3.Connection) -> None:
 def _add_missing_card_columns(connection: sqlite3.Connection) -> None:
     """Add card metadata columns to a database created before they existed.
 
-    New columns are nullable with no default, so a plain ADD COLUMN is safe
-    and there is no data to backfill. This is the only forward migration the
-    local MVP needs; a schema too old for this is rebuilt by
+    New columns are nullable or carry a literal default, so a plain ADD COLUMN
+    is safe and there is no data to backfill. This is the only forward
+    migration the local MVP needs; a schema too old for this is rebuilt by
     ``_reset_outdated_schema``.
     """
-    for column, definition in (("priority", "TEXT"), ("due_date", "TEXT")):
+    for column, definition in (
+        ("priority", "TEXT"),
+        ("due_date", "TEXT"),
+        ("labels", "TEXT NOT NULL DEFAULT '[]'"),
+    ):
         if not _has_column(connection, "cards", column):
             connection.execute(f"ALTER TABLE cards ADD COLUMN {column} {definition}")
 
@@ -119,6 +124,7 @@ def initialize_database(database_path: str) -> None:
                 details TEXT NOT NULL DEFAULT '',
                 priority TEXT,
                 due_date TEXT,
+                labels TEXT NOT NULL DEFAULT '[]',
                 position INTEGER NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
@@ -170,16 +176,27 @@ def seed_mvp_board(connection: sqlite3.Connection) -> None:
             (column_id, board_id, title, position),
         )
     column_positions = {column_id: 0 for column_id in column_ids}
-    for card_id, title, details, column_index, priority, due_date in INITIAL_CARDS:
+    for card_id, title, details, column_index, priority, due_date, labels in INITIAL_CARDS:
         column_id = column_ids[column_index]
         position = column_positions[column_id]
         connection.execute(
             """
             INSERT INTO cards
-              (id, column_id, title, details, priority, due_date, position, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              (id, column_id, title, details, priority, due_date, labels, position, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (card_id, column_id, title, details, priority, due_date, position, timestamp, timestamp),
+            (
+                card_id,
+                column_id,
+                title,
+                details,
+                priority,
+                due_date,
+                json.dumps(labels),
+                position,
+                timestamp,
+                timestamp,
+            ),
         )
         column_positions[column_id] += 1
 
@@ -327,7 +344,7 @@ def read_board(database_path: str, user_id: str, board_id: str) -> BoardData | N
         cards = connection.execute(
             """
             SELECT cards.id, cards.title, cards.details, cards.priority,
-                   cards.due_date, cards.column_id
+                   cards.due_date, cards.labels, cards.column_id
             FROM cards
             JOIN columns ON columns.id = cards.column_id
             WHERE columns.board_id = ?
@@ -343,6 +360,7 @@ def read_board(database_path: str, user_id: str, board_id: str) -> BoardData | N
             "details": card["details"],
             "priority": card["priority"],
             "dueDate": card["due_date"],
+            "labels": json.loads(card["labels"] or "[]"),
         }
         for card in cards
     }
@@ -408,8 +426,8 @@ def replace_board(
                 connection.execute(
                     """
                     INSERT INTO cards
-                      (id, column_id, title, details, priority, due_date, position, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      (id, column_id, title, details, priority, due_date, labels, position, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         card.id,
@@ -418,6 +436,7 @@ def replace_board(
                         card.details,
                         card.priority,
                         card.dueDate,
+                        json.dumps(card.labels),
                         card_position,
                         created_at,
                         timestamp,

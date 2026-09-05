@@ -1,10 +1,36 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 Priority = Literal["low", "medium", "high"]
 
 DUE_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
+
+MAX_LABELS_PER_CARD = 10
+MAX_LABEL_LENGTH = 32
+
+
+def normalize_labels(value: list[str]) -> list[str]:
+    """Trim, drop case-insensitive duplicates, and bound labels.
+
+    Shared by the Card model and the AI card operations so both accept the
+    same input and store the same canonical form.
+    """
+    cleaned: list[str] = []
+    lowered: set[str] = set()
+    for raw in value:
+        label = raw.strip()
+        if not label:
+            raise ValueError("Labels cannot be empty")
+        if len(label) > MAX_LABEL_LENGTH:
+            raise ValueError(f"Labels cannot exceed {MAX_LABEL_LENGTH} characters")
+        if label.lower() in lowered:
+            continue
+        lowered.add(label.lower())
+        cleaned.append(label)
+    if len(cleaned) > MAX_LABELS_PER_CARD:
+        raise ValueError(f"A card can have at most {MAX_LABELS_PER_CARD} labels")
+    return cleaned
 
 
 class Card(BaseModel):
@@ -13,6 +39,12 @@ class Card(BaseModel):
     details: str = ""
     priority: Priority | None = None
     dueDate: str | None = Field(default=None, pattern=DUE_DATE_PATTERN)
+    labels: list[str] = Field(default_factory=list)
+
+    @field_validator("labels")
+    @classmethod
+    def _validate_labels(cls, value: list[str]) -> list[str]:
+        return normalize_labels(value)
 
 
 class Column(BaseModel):

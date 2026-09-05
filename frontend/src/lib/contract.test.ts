@@ -2,7 +2,14 @@ import { initialData, type BoardData } from "@/lib/kanban";
 
 // Mirrors backend/tests/test_contract.py. The BoardData payload is defined
 // independently on each side, so keep the field names identical.
-const CARD_FIELDS = ["details", "dueDate", "id", "priority", "title"];
+const CARD_FIELDS = [
+  "details",
+  "dueDate",
+  "id",
+  "labels",
+  "priority",
+  "title",
+];
 
 const sample: BoardData = {
   columns: [
@@ -16,6 +23,7 @@ const sample: BoardData = {
       details: "Notes",
       priority: "high",
       dueDate: "2026-01-31",
+      labels: ["research", "q1"],
     },
   },
 };

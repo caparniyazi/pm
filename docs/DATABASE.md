@@ -44,9 +44,15 @@ content payload shape (`{ columns, cards }`) keeps its top-level structure from
 the original single-board MVP; only the routing (`/api/boards/{board_id}`
 instead of `/api/board`) and the authentication boundary changed.
 
-Each card carries two optional metadata fields alongside `title` and
-`details`: `priority` (`"low"`, `"medium"`, `"high"`, or `null`) and `dueDate`
-(a `YYYY-MM-DD` calendar date, or `null`). Both are stored on the `cards` table
-(`priority`, `due_date`) and are always present in API responses, defaulting to
-`null`. A database created before these columns existed has them added by a
-plain `ALTER TABLE` at startup (no backfill needed).
+Each card carries structured metadata alongside `title` and `details`:
+`priority` (`"low"`, `"medium"`, `"high"`, or `null`), `dueDate` (a
+`YYYY-MM-DD` calendar date, or `null`), and `labels` (an array of short tag
+strings). `labels` is stored on the `cards` table as a JSON text column
+(`labels`, default `'[]'`) and is trimmed, de-duplicated case-insensitively,
+and bounded (at most 10 labels, each at most 32 characters) by
+`normalize_labels` in `models.py`, shared by the `Card` model and the AI card
+operations. `priority` / `due_date` are plain nullable columns. All three
+fields are always present in API responses (`priority`/`dueDate` default to
+`null`, `labels` to `[]`). A database created before any of these columns
+existed has them added by a plain `ALTER TABLE` at startup (no backfill
+needed).

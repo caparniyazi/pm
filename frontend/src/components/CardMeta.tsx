@@ -1,5 +1,12 @@
+import { useState, type KeyboardEvent } from "react";
 import clsx from "clsx";
-import { PRIORITIES, type Priority } from "@/lib/kanban";
+import {
+  MAX_LABELS_PER_CARD,
+  MAX_LABEL_LENGTH,
+  normalizeLabels,
+  PRIORITIES,
+  type Priority,
+} from "@/lib/kanban";
 
 const PRIORITY_STYLES: Record<Priority, string> = {
   low: "bg-[rgba(32,157,215,0.12)] text-[var(--primary-blue)]",
@@ -71,6 +78,122 @@ export const CardMetaBadges = ({ priority, dueDate }: CardMetaBadgesProps) => {
           {`Due ${formatDueDate(dueDate)}`}
         </span>
       )}
+    </div>
+  );
+};
+
+const chipClass =
+  "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]";
+
+type LabelChipsProps = {
+  labels: string[];
+  activeLabels?: readonly string[];
+  onToggle?: (label: string) => void;
+  className?: string;
+};
+
+export const LabelChips = ({
+  labels,
+  activeLabels,
+  onToggle,
+  className,
+}: LabelChipsProps) => {
+  if (labels.length === 0) {
+    return null;
+  }
+  const active = new Set(activeLabels ?? []);
+  return (
+    <div className={clsx("flex flex-wrap items-center gap-1.5", className)}>
+      {labels.map((label) => {
+        const isActive = active.has(label);
+        const style = clsx(
+          chipClass,
+          isActive
+            ? "bg-[var(--primary-blue)] text-white"
+            : "bg-[rgba(32,157,215,0.12)] text-[var(--primary-blue)]"
+        );
+        if (!onToggle) {
+          return (
+            <span key={label} className={style}>
+              {label}
+            </span>
+          );
+        }
+        return (
+          <button
+            key={label}
+            type="button"
+            onClick={() => onToggle(label)}
+            aria-pressed={isActive}
+            className={clsx(style, "transition hover:brightness-105")}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+type LabelEditorProps = {
+  labels: string[];
+  onChange: (labels: string[]) => void;
+};
+
+export const LabelEditor = ({ labels, onChange }: LabelEditorProps) => {
+  const [draft, setDraft] = useState("");
+
+  const addDraft = () => {
+    const next = normalizeLabels([...labels, draft]);
+    if (next.length !== labels.length) {
+      onChange(next);
+    }
+    setDraft("");
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      addDraft();
+    } else if (event.key === "Backspace" && !draft && labels.length > 0) {
+      onChange(labels.slice(0, -1));
+    }
+  };
+
+  return (
+    <div className="text-xs font-semibold uppercase tracking-wide text-[var(--gray-text)]">
+      Labels
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 rounded-xl border border-[var(--stroke)] bg-white px-2 py-2">
+        {labels.map((label) => (
+          <span
+            key={label}
+            className={clsx(
+              chipClass,
+              "flex items-center gap-1 bg-[rgba(32,157,215,0.12)] text-[var(--primary-blue)]"
+            )}
+          >
+            {label}
+            <button
+              type="button"
+              onClick={() => onChange(labels.filter((item) => item !== label))}
+              aria-label={`Remove label ${label}`}
+              className="leading-none text-[var(--primary-blue)] hover:text-[var(--secondary-purple)]"
+            >
+              &times;
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value.slice(0, MAX_LABEL_LENGTH))}
+          onKeyDown={handleKeyDown}
+          onBlur={addDraft}
+          disabled={labels.length >= MAX_LABELS_PER_CARD}
+          placeholder={labels.length === 0 ? "Add a label" : ""}
+          aria-label="Add label"
+          className="min-w-[6rem] flex-1 bg-transparent px-1 py-0.5 text-xs font-medium normal-case tracking-normal text-[var(--navy-dark)] outline-none disabled:cursor-not-allowed"
+        />
+      </div>
     </div>
   );
 };

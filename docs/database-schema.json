@@ -149,6 +149,12 @@
           "format": "YYYY-MM-DD calendar date",
           "wire_name": "dueDate"
         },
+        "labels": {
+          "type": "TEXT",
+          "nullable": false,
+          "default": "[]",
+          "format": "JSON array of trimmed, de-duplicated tag strings (max 10, each <= 32 chars)"
+        },
         "position": {
           "type": "INTEGER",
           "nullable": false,
@@ -192,14 +198,16 @@
         "title": "Card title",
         "details": "Card details",
         "priority": "high",
-        "dueDate": "2026-01-31"
+        "dueDate": "2026-01-31",
+        "labels": ["research", "q1"]
       }
     }
   },
   "board_payload_notes": [
     "priority is one of low, medium, high, or null.",
     "dueDate is a YYYY-MM-DD calendar date or null.",
-    "Both card metadata fields are always present in API responses."
+    "labels is an array of tag strings, trimmed and de-duplicated (max 10, each <= 32 chars); it may be empty.",
+    "All three card metadata fields are always present in API responses."
   ],
   "board_summary_payload": {
     "id": "board-id",

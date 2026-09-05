@@ -141,6 +141,61 @@ def test_edit_card_with_only_priority_is_allowed() -> None:
     assert updated.cards["card-1"].title == "First"
 
 
+def test_create_and_edit_card_carry_labels() -> None:
+    updated = apply_board_update(
+        board(),
+        BoardUpdate(
+            operations=[
+                CreateCardOperation(
+                    kind="create_card",
+                    card_id="card-2",
+                    title="Second",
+                    column_id="todo",
+                    labels=["Bug", "  bug ", "urgent"],
+                ),
+                EditCardOperation(
+                    kind="edit_card", card_id="card-1", labels=["research"]
+                ),
+            ]
+        ),
+    )
+
+    assert updated.cards["card-2"].labels == ["Bug", "urgent"]
+    assert updated.cards["card-1"].labels == ["research"]
+
+
+def test_edit_card_clears_labels_with_empty_list() -> None:
+    start = board()
+    start.cards["card-1"].labels = ["stale"]
+
+    updated = apply_board_update(
+        start,
+        BoardUpdate(
+            operations=[
+                EditCardOperation(kind="edit_card", card_id="card-1", labels=[])
+            ]
+        ),
+    )
+
+    assert updated.cards["card-1"].labels == []
+
+
+def test_edit_card_without_labels_key_leaves_them_untouched() -> None:
+    start = board()
+    start.cards["card-1"].labels = ["keep"]
+
+    updated = apply_board_update(
+        start,
+        BoardUpdate(
+            operations=[
+                EditCardOperation(kind="edit_card", card_id="card-1", details="new")
+            ]
+        ),
+    )
+
+    assert updated.cards["card-1"].labels == ["keep"]
+
+
 def test_operations_reject_invalid_priority_and_due_date() -> None:
     with pytest.raises(ValueError):
         CreateCardOperation(

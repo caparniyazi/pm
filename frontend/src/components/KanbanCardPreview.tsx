@@ -1,5 +1,5 @@
 import type { Card } from "@/lib/kanban";
-import { CardMetaBadges } from "@/components/CardMeta";
+import { CardMetaBadges, LabelChips } from "@/components/CardMeta";
 
 type KanbanCardPreviewProps = {
   card: Card;
@@ -16,6 +16,7 @@ export const KanbanCardPreview = ({ card }: KanbanCardPreviewProps) => (
           {card.details}
         </p>
         <CardMetaBadges priority={card.priority} dueDate={card.dueDate} />
+        <LabelChips labels={card.labels ?? []} className="mt-2" />
       </div>
     </div>
   </article>

@@ -80,6 +80,36 @@ def test_seeded_cards_carry_priority(tmp_path: Path) -> None:
     assert board.cards["card-6"].priority is None
 
 
+def test_card_labels_round_trip(tmp_path: Path) -> None:
+    database_path = str(tmp_path / "pm.sqlite3")
+    initialize_database(database_path)
+    board_id = list_boards(database_path, "user-1")[0]["id"]
+    board = read_board(database_path, "user-1", board_id)
+    assert board is not None
+
+    first_id = board.columns[0].cardIds[0]
+    board.cards[first_id].labels = ["bug", "urgent"]
+    second_id = board.columns[0].cardIds[1]
+    board.cards[second_id].labels = []
+    replace_board(database_path, "user-1", board_id, board)
+
+    saved = read_board(database_path, "user-1", board_id)
+    assert saved is not None
+    assert saved.cards[first_id].labels == ["bug", "urgent"]
+    assert saved.cards[second_id].labels == []
+
+
+def test_seeded_cards_carry_labels(tmp_path: Path) -> None:
+    database_path = str(tmp_path / "pm.sqlite3")
+    initialize_database(database_path)
+    board_id = list_boards(database_path, "user-1")[0]["id"]
+    board = read_board(database_path, "user-1", board_id)
+    assert board is not None
+
+    assert board.cards["card-1"].labels == ["planning", "roadmap"]
+    assert board.cards["card-8"].labels == []
+
+
 def test_invalid_board_update_is_rejected(tmp_path: Path) -> None:
     database_path = str(tmp_path / "pm.sqlite3")
     initialize_database(database_path)

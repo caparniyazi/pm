@@ -3,7 +3,13 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from backend.app.models import BoardData, Card, DUE_DATE_PATTERN, Priority
+from backend.app.models import (
+    BoardData,
+    Card,
+    DUE_DATE_PATTERN,
+    Priority,
+    normalize_labels,
+)
 from backend.app.openrouter import ask_openrouter_messages
 
 
@@ -30,6 +36,7 @@ class CreateCardOperation(BaseModel):
     details: str = ""
     priority: Priority | None = None
     due_date: str | None = Field(default=None, pattern=DUE_DATE_PATTERN)
+    labels: list[str] = Field(default_factory=list)
     column_id: str = Field(min_length=1)
     position: int = Field(default=-1, ge=-1)
 
@@ -41,6 +48,8 @@ class EditCardOperation(BaseModel):
     details: str | None = None
     priority: Priority | None = None
     due_date: str | None = Field(default=None, pattern=DUE_DATE_PATTERN)
+    # None leaves labels unchanged; [] clears them.
+    labels: list[str] | None = None
 
 
 class MoveCardOperation(BaseModel):
@@ -93,7 +102,9 @@ def build_messages(board: BoardData, request: AIChatRequest) -> list[dict[str, s
         "For positions, use -1 to append. Use existing IDs for edits, moves, "
         "deletes, and column renames. New card IDs must be unique. "
         "create_card and edit_card also accept an optional priority "
-        '("low", "medium", or "high") and due_date ("YYYY-MM-DD").'
+        '("low", "medium", or "high"), due_date ("YYYY-MM-DD"), and labels '
+        "(an array of short text tags; on edit_card, omit to keep the "
+        "existing labels or pass [] to clear them)."
     )
     context = json.dumps(
         {
@@ -165,6 +176,7 @@ def _create_card(board: BoardData, operation: CreateCardOperation) -> None:
         details=operation.details,
         priority=operation.priority,
         dueDate=operation.due_date,
+        labels=operation.labels,
     )
     _insert_card(column, operation.card_id, operation.position)
 
@@ -178,6 +190,7 @@ def _edit_card(board: BoardData, operation: EditCardOperation) -> None:
         operation.details,
         operation.priority,
         operation.due_date,
+        operation.labels,
     )
     if all(value is None for value in changes):
         raise ValueError("Card edit must change at least one field")
@@ -191,6 +204,8 @@ def _edit_card(board: BoardData, operation: EditCardOperation) -> None:
         card.priority = operation.priority
     if operation.due_date is not None:
         card.dueDate = operation.due_date
+    if operation.labels is not None:
+        card.labels = normalize_labels(operation.labels)
 
 
 def _move_card(board: BoardData, operation: MoveCardOperation) -> None:
