@@ -3,12 +3,15 @@ import json
 import pytest
 
 from backend.app.ai import (
+    AddColumnOperation,
     AIChatRequest,
     BoardUpdate,
     CreateCardOperation,
     DeleteCardOperation,
     EditCardOperation,
     MoveCardOperation,
+    MoveColumnOperation,
+    RemoveColumnOperation,
     RenameColumnOperation,
     apply_board_update,
     build_messages,
@@ -207,6 +210,51 @@ def test_operations_reject_invalid_priority_and_due_date() -> None:
         )
     with pytest.raises(ValueError):
         EditCardOperation(kind="edit_card", card_id="card-1", due_date="03/10/2026")
+
+
+def test_add_remove_and_move_column_operations() -> None:
+    updated = apply_board_update(
+        board(),
+        BoardUpdate(
+            operations=[
+                AddColumnOperation(
+                    kind="add_column", column_id="blocked", title="Blocked", position=1
+                ),
+                MoveColumnOperation(
+                    kind="move_column", column_id="blocked", position=0
+                ),
+                RemoveColumnOperation(kind="remove_column", column_id="done"),
+            ]
+        ),
+    )
+
+    assert [column.id for column in updated.columns] == ["blocked", "todo"]
+
+
+def test_remove_column_rejects_a_column_with_cards() -> None:
+    with pytest.raises(ValueError, match="still has cards"):
+        apply_board_update(
+            board(),
+            BoardUpdate(
+                operations=[
+                    RemoveColumnOperation(kind="remove_column", column_id="todo")
+                ]
+            ),
+        )
+
+
+def test_add_column_rejects_a_duplicate_id() -> None:
+    with pytest.raises(ValueError, match="already exists"):
+        apply_board_update(
+            board(),
+            BoardUpdate(
+                operations=[
+                    AddColumnOperation(
+                        kind="add_column", column_id="todo", title="Dup"
+                    )
+                ]
+            ),
+        )
 
 
 def test_invalid_multi_operation_does_not_mutate_original_board() -> None:

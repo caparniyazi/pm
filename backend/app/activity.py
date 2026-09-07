@@ -50,11 +50,28 @@ def diff_board_activity(old: BoardData, new: BoardData) -> list[ActivityDiffEntr
     new_titles = {column.id: column.title for column in new.columns}
     for column_id, title in new_titles.items():
         previous = old_titles.get(column_id)
-        if previous is not None and previous != title:
+        if previous is None:
+            entries.append(
+                ActivityDiffEntry(
+                    kind="column_added",
+                    summary=f'Added column "{title}"',
+                    card_id=None,
+                )
+            )
+        elif previous != title:
             entries.append(
                 ActivityDiffEntry(
                     kind="column_renamed",
                     summary=f'Renamed column "{previous}" to "{title}"',
+                    card_id=None,
+                )
+            )
+    for column_id, title in old_titles.items():
+        if column_id not in new_titles:
+            entries.append(
+                ActivityDiffEntry(
+                    kind="column_removed",
+                    summary=f'Removed column "{title}"',
                     card_id=None,
                 )
             )

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, ValidationError
 from backend.app.models import (
     BoardData,
     Card,
+    Column,
     DUE_DATE_PATTERN,
     Priority,
     normalize_labels,
@@ -70,12 +71,33 @@ class RenameColumnOperation(BaseModel):
     title: str = Field(min_length=1)
 
 
+class AddColumnOperation(BaseModel):
+    kind: Literal["add_column"]
+    column_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    position: int = Field(default=-1, ge=-1)
+
+
+class RemoveColumnOperation(BaseModel):
+    kind: Literal["remove_column"]
+    column_id: str = Field(min_length=1)
+
+
+class MoveColumnOperation(BaseModel):
+    kind: Literal["move_column"]
+    column_id: str = Field(min_length=1)
+    position: int = Field(ge=0)
+
+
 BoardOperation = Annotated[
     CreateCardOperation
     | EditCardOperation
     | MoveCardOperation
     | DeleteCardOperation
-    | RenameColumnOperation,
+    | RenameColumnOperation
+    | AddColumnOperation
+    | RemoveColumnOperation
+    | MoveColumnOperation,
     Field(discriminator="kind"),
 ]
 
@@ -98,9 +120,11 @@ def build_messages(board: BoardData, request: AIChatRequest) -> list[dict[str, s
         "You are a project management assistant. Return only valid JSON with this "
         'shape: {"assistant_response": string, "board_update": '
         '{"operations": [...] } or null}. Allowed operation kinds are '
-        "create_card, edit_card, move_card, delete_card, and rename_column. "
+        "create_card, edit_card, move_card, delete_card, rename_column, "
+        "add_column, remove_column, and move_column. "
         "For positions, use -1 to append. Use existing IDs for edits, moves, "
-        "deletes, and column renames. New card IDs must be unique. "
+        "deletes, and column renames. New card and column IDs must be unique. "
+        "remove_column only works on a column with no cards. "
         "create_card and edit_card also accept an optional priority "
         '("low", "medium", or "high"), due_date ("YYYY-MM-DD"), and labels '
         "(an array of short text tags; on edit_card, omit to keep the "
@@ -149,8 +173,14 @@ def apply_board_update(board: BoardData, update: BoardUpdate) -> BoardData:
             _move_card(next_board, operation)
         elif isinstance(operation, DeleteCardOperation):
             _delete_card(next_board, operation)
-        else:
+        elif isinstance(operation, RenameColumnOperation):
             _rename_column(next_board, operation)
+        elif isinstance(operation, AddColumnOperation):
+            _add_column(next_board, operation)
+        elif isinstance(operation, RemoveColumnOperation):
+            _remove_column(next_board, operation)
+        else:
+            _move_column(next_board, operation)
     return next_board
 
 
@@ -231,6 +261,34 @@ def _delete_card(board: BoardData, operation: DeleteCardOperation) -> None:
 
 def _rename_column(board: BoardData, operation: RenameColumnOperation) -> None:
     _column(board, operation.column_id).title = operation.title
+
+
+def _add_column(board: BoardData, operation: AddColumnOperation) -> None:
+    if any(column.id == operation.column_id for column in board.columns):
+        raise ValueError(f"Column already exists: {operation.column_id}")
+    column = Column(id=operation.column_id, title=operation.title, cardIds=[])
+    insert_at = (
+        len(board.columns)
+        if operation.position == -1
+        else min(operation.position, len(board.columns))
+    )
+    board.columns.insert(insert_at, column)
+
+
+def _remove_column(board: BoardData, operation: RemoveColumnOperation) -> None:
+    column = _column(board, operation.column_id)
+    if column.cardIds:
+        raise ValueError("Cannot remove a column that still has cards")
+    if len(board.columns) == 1:
+        raise ValueError("A board must have at least one column")
+    board.columns = [c for c in board.columns if c.id != operation.column_id]
+
+
+def _move_column(board: BoardData, operation: MoveColumnOperation) -> None:
+    column = _column(board, operation.column_id)
+    board.columns = [c for c in board.columns if c.id != operation.column_id]
+    insert_at = min(operation.position, len(board.columns))
+    board.columns.insert(insert_at, column)
 
 
 def generate_structured_response(

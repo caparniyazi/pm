@@ -99,6 +99,8 @@ ActivityKind = Literal[
     "card_edited",
     "card_moved",
     "card_deleted",
+    "column_added",
+    "column_removed",
     "column_renamed",
     "comment_added",
     "comment_deleted",

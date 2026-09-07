@@ -65,3 +65,12 @@ def test_detects_column_rename() -> None:
     assert entry.kind == "column_renamed"
     assert entry.summary == 'Renamed column "To do" to "Backlog"'
     assert entry.card_id is None
+
+
+def test_detects_column_add_and_remove() -> None:
+    before = board({"todo": [], "done": []}, titles={"todo": "To do", "done": "Done"})
+    after = board({"todo": [], "blocked": []}, titles={"todo": "To do", "blocked": "Blocked"})
+
+    entries = {(entry.kind, entry.summary) for entry in diff_board_activity(before, after)}
+    assert ("column_added", 'Added column "Blocked"') in entries
+    assert ("column_removed", 'Removed column "Done"') in entries

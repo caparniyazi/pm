@@ -13,6 +13,9 @@ type KanbanColumnProps = {
   onEditCard: (cardId: string, fields: CardFields) => void;
   onDeleteCard: (columnId: string, cardId: string) => void;
   cardComments?: CardCommentsBridge;
+  columnPosition?: { index: number; count: number };
+  onMoveColumn?: (columnId: string, delta: number) => void;
+  onRemoveColumn?: (columnId: string) => void;
 };
 
 export const KanbanColumn = ({
@@ -23,8 +26,16 @@ export const KanbanColumn = ({
   onEditCard,
   onDeleteCard,
   cardComments,
+  columnPosition,
+  onMoveColumn,
+  onRemoveColumn,
 }: KanbanColumnProps) => {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
+  const canMove = Boolean(columnPosition && onMoveColumn);
+  const isFirst = columnPosition?.index === 0;
+  const isLast =
+    columnPosition !== undefined &&
+    columnPosition.index === columnPosition.count - 1;
 
   return (
     <section
@@ -42,6 +53,42 @@ export const KanbanColumn = ({
             <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
               {cards.length} cards
             </span>
+            {(canMove || onRemoveColumn) && (
+              <div className="ml-auto flex items-center gap-0.5">
+                {canMove && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onMoveColumn?.(column.id, -1)}
+                      disabled={isFirst}
+                      aria-label={`Move column ${column.title} left`}
+                      className="rounded-full p-1 text-[var(--gray-text)] transition hover:text-[var(--primary-blue)] disabled:opacity-30"
+                    >
+                      &#8592;
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onMoveColumn?.(column.id, 1)}
+                      disabled={isLast}
+                      aria-label={`Move column ${column.title} right`}
+                      className="rounded-full p-1 text-[var(--gray-text)] transition hover:text-[var(--primary-blue)] disabled:opacity-30"
+                    >
+                      &#8594;
+                    </button>
+                  </>
+                )}
+                {onRemoveColumn && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveColumn(column.id)}
+                    aria-label={`Delete column ${column.title}`}
+                    className="rounded-full p-1 text-[var(--gray-text)] transition hover:text-[var(--secondary-purple)]"
+                  >
+                    &#215;
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <input
             value={column.title}

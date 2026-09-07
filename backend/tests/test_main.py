@@ -259,24 +259,50 @@ class TestBoardContents:
         assert update.status_code == 200
         assert update.json()["columns"][0]["title"] == "Ideas"
 
-    def test_put_board_rejects_renamed_column_id(self, client: TestClient) -> None:
+    def test_put_board_can_add_and_remove_columns(self, client: TestClient) -> None:
         headers = auth_headers(client, "alice")
         board_id = first_board_id(client, headers)
         board = client.get(f"/api/boards/{board_id}", headers=headers).json()
-        board["columns"][0]["id"] = "col-renamed"
+        board["columns"].append({"id": "col-new", "title": "Blocked", "cardIds": []})
+        board["columns"].pop(0)
+
+        update = client.put(f"/api/boards/{board_id}", headers=headers, json=board)
+
+        assert update.status_code == 200
+        titles = [column["title"] for column in update.json()["columns"]]
+        assert "Blocked" in titles and "Backlog" not in titles
+
+        activity = client.get(f"/api/boards/{board_id}/activity", headers=headers).json()
+        kinds = {entry["kind"] for entry in activity}
+        assert {"column_added", "column_removed"} <= kinds
+
+    def test_put_board_rejects_an_empty_column_set(self, client: TestClient) -> None:
+        headers = auth_headers(client, "alice")
+        board_id = first_board_id(client, headers)
+        board = client.get(f"/api/boards/{board_id}", headers=headers).json()
+        board["columns"] = []
 
         response = client.put(f"/api/boards/{board_id}", headers=headers, json=board)
 
         assert response.status_code == 400
-        assert "added or removed" in response.json()["detail"]
+        assert "at least one column" in response.json()["detail"]
 
-    def test_put_board_rejects_removed_column(self, client: TestClient) -> None:
+    def test_put_board_rejects_a_card_left_without_a_column(
+        self, client: TestClient
+    ) -> None:
         headers = auth_headers(client, "alice")
         board_id = first_board_id(client, headers)
         board = client.get(f"/api/boards/{board_id}", headers=headers).json()
-        dropped = board["columns"].pop()
-        board["columns"][-1]["cardIds"] += dropped["cardIds"]
+        board["columns"][0]["cardIds"] = ["stray"]
+        board["cards"]["stray"] = {"id": "stray", "title": "Stray", "details": ""}
+        assert (
+            client.put(f"/api/boards/{board_id}", headers=headers, json=board).status_code
+            == 200
+        )
 
+        # Drop the column but leave its card in the map.
+        board = client.get(f"/api/boards/{board_id}", headers=headers).json()
+        board["columns"] = [c for c in board["columns"] if c["cardIds"] != ["stray"]]
         response = client.put(f"/api/boards/{board_id}", headers=headers, json=board)
 
         assert response.status_code == 400

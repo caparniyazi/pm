@@ -18,11 +18,16 @@ import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
 import { LabelChips } from "@/components/CardMeta";
 import { ActivityPanel } from "@/components/ActivityPanel";
+import { AddColumnForm } from "@/components/AddColumnForm";
 import type { ActivityEntry, Comment } from "@/lib/api";
 import {
+  addColumn,
+  canRemoveColumn,
   createId,
   initialData,
   moveCard,
+  moveColumn,
+  removeColumn,
   type BoardData,
   type CardFields,
 } from "@/lib/kanban";
@@ -194,6 +199,27 @@ export const KanbanBoard = ({
     });
   };
 
+  const handleAddColumn = (title: string) => {
+    const columns = addColumn(board.columns, title);
+    if (columns !== board.columns) {
+      commit({ ...board, columns });
+    }
+  };
+
+  const handleRemoveColumn = (columnId: string) => {
+    const next = removeColumn(board, columnId);
+    if (next !== board) {
+      commit(next);
+    }
+  };
+
+  const handleMoveColumn = (columnId: string, delta: number) => {
+    const columns = moveColumn(board.columns, columnId, delta);
+    if (columns !== board.columns) {
+      commit({ ...board, columns });
+    }
+  };
+
   const handleAddCard = (columnId: string, fields: CardFields) => {
     const id = createId("card");
     commit({
@@ -307,7 +333,7 @@ export const KanbanBoard = ({
           onDragEnd={handleDragEnd}
         >
           <section className="flex flex-1 items-stretch gap-4 overflow-x-auto pb-2">
-            {visibleColumns.map((column) => (
+            {visibleColumns.map((column, index) => (
               <div
                 key={column.id}
                 className="w-[300px] shrink-0 md:w-[320px] lg:w-0 lg:min-w-[210px] lg:flex-1 lg:shrink"
@@ -320,9 +346,20 @@ export const KanbanBoard = ({
                   onEditCard={handleEditCard}
                   onDeleteCard={handleDeleteCard}
                   cardComments={cardComments}
+                  columnPosition={{ index, count: visibleColumns.length }}
+                  onMoveColumn={handleMoveColumn}
+                  onRemoveColumn={
+                    canRemoveColumn(board, column.id)
+                      ? handleRemoveColumn
+                      : undefined
+                  }
                 />
               </div>
             ))}
+            <AddColumnForm
+              onAdd={handleAddColumn}
+              disabled={board.columns.length >= 20}
+            />
           </section>
           <DragOverlay>
             {activeCard ? (

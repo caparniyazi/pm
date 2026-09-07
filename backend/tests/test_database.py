@@ -114,6 +114,45 @@ def test_seeded_cards_carry_labels(tmp_path: Path) -> None:
     assert board.cards["card-8"].labels == []
 
 
+def test_columns_can_be_added_removed_and_reordered(tmp_path: Path) -> None:
+    database_path = str(tmp_path / "pm.sqlite3")
+    initialize_database(database_path)
+    board_id = list_boards(database_path, "user-1")[0]["id"]
+    board = read_board(database_path, "user-1", board_id)
+    assert board is not None
+
+    from backend.app.models import Column
+
+    dropped = board.columns[-1]
+    for card_id in dropped.cardIds:
+        del board.cards[card_id]
+    board.columns = board.columns[:-1]
+    board.columns.insert(0, Column(id="col-blocked", title="Blocked", cardIds=[]))
+    replace_board(database_path, "user-1", board_id, board)
+
+    saved = read_board(database_path, "user-1", board_id)
+    assert saved is not None
+    ids = [c.id for c in saved.columns]
+    assert ids[0] == "col-blocked"
+    assert dropped.id not in ids
+
+    kinds = {e["kind"] for e in list_activity(database_path, "user-1", board_id)}
+    assert {"column_added", "column_removed"} <= kinds
+
+
+def test_replace_board_rejects_zero_columns(tmp_path: Path) -> None:
+    database_path = str(tmp_path / "pm.sqlite3")
+    initialize_database(database_path)
+    board_id = list_boards(database_path, "user-1")[0]["id"]
+    board = read_board(database_path, "user-1", board_id)
+    assert board is not None
+    board.columns = []
+    board.cards = {}
+
+    with pytest.raises(ValueError, match="at least one column"):
+        replace_board(database_path, "user-1", board_id, board)
+
+
 def test_invalid_board_update_is_rejected(tmp_path: Path) -> None:
     database_path = str(tmp_path / "pm.sqlite3")
     initialize_database(database_path)

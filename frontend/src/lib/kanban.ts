@@ -215,3 +215,47 @@ export const createId = (prefix: string) => {
   const timePart = Date.now().toString(36);
   return `${prefix}-${randomPart}${timePart}`;
 };
+
+export const MAX_COLUMNS_PER_BOARD = 20;
+
+export const addColumn = (columns: Column[], title: string): Column[] => {
+  const trimmed = title.trim();
+  if (!trimmed || columns.length >= MAX_COLUMNS_PER_BOARD) {
+    return columns;
+  }
+  return [...columns, { id: createId("col"), title: trimmed, cardIds: [] }];
+};
+
+// A column can only be removed when it holds no cards and is not the last one.
+export const canRemoveColumn = (board: BoardData, columnId: string): boolean => {
+  const column = board.columns.find((item) => item.id === columnId);
+  return (
+    board.columns.length > 1 && column !== undefined && column.cardIds.length === 0
+  );
+};
+
+export const removeColumn = (board: BoardData, columnId: string): BoardData => {
+  if (!canRemoveColumn(board, columnId)) {
+    return board;
+  }
+  return {
+    ...board,
+    columns: board.columns.filter((column) => column.id !== columnId),
+  };
+};
+
+export const moveColumn = (
+  columns: Column[],
+  columnId: string,
+  delta: number
+): Column[] => {
+  const index = columns.findIndex((column) => column.id === columnId);
+  const target = index + delta;
+  if (index === -1 || target < 0 || target >= columns.length) {
+    return columns;
+  }
+  const next = [...columns];
+  const [moved] = next.splice(index, 1);
+  next.splice(target, 0, moved);
+  return next;
+};

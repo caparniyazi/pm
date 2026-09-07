@@ -418,15 +418,7 @@ def replace_board(
         if board is None:
             return None
 
-        existing_column_ids = {
-            row["id"]
-            for row in connection.execute(
-                "SELECT id FROM columns WHERE board_id = ?", (board_id,)
-            )
-        }
         validate_board(board_data)
-        if existing_column_ids and {c.id for c in board_data.columns} != existing_column_ids:
-            raise ValueError("Board columns can be renamed but not added or removed")
 
         previous_board = _read_board_data(connection, board_id)
 
@@ -527,8 +519,17 @@ def _record_activity(
     )
 
 
+MAX_COLUMNS_PER_BOARD = 20
+
+
 def validate_board(board_data: BoardData) -> None:
     column_ids = [column.id for column in board_data.columns]
+    if not column_ids:
+        raise ValueError("A board must have at least one column")
+    if len(column_ids) > MAX_COLUMNS_PER_BOARD:
+        raise ValueError(
+            f"A board can have at most {MAX_COLUMNS_PER_BOARD} columns"
+        )
     if len(column_ids) != len(set(column_ids)):
         raise ValueError("Column IDs must be unique")
     referenced_card_ids = [

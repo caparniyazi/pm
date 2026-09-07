@@ -184,3 +184,55 @@ describe("KanbanBoard", () => {
     expect(onAddComment).toHaveBeenCalledWith("card-1", "Another");
   });
 });
+
+describe("KanbanBoard columns", () => {
+  it("adds a column through the inline form", async () => {
+    render(<KanbanBoard />);
+
+    await userEvent.click(screen.getByRole("button", { name: /add column/i }));
+    await userEvent.type(
+      screen.getByLabelText("New column title"),
+      "Blocked"
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add column" }));
+
+    const columns = screen.getAllByTestId(/column-/i);
+    expect(columns).toHaveLength(6);
+    expect(within(columns[5]).getByDisplayValue("Blocked")).toBeInTheDocument();
+  });
+
+  it("reorders a column with the move controls", async () => {
+    render(<KanbanBoard />);
+    const before = screen
+      .getAllByTestId(/column-/i)
+      .map((el) => el.getAttribute("data-testid"));
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /move column backlog right/i })
+    );
+
+    const after = screen
+      .getAllByTestId(/column-/i)
+      .map((el) => el.getAttribute("data-testid"));
+    expect(after[0]).toBe(before[1]);
+    expect(after[1]).toBe(before[0]);
+  });
+
+  it("only shows a delete control on empty columns", async () => {
+    render(<KanbanBoard />);
+    // Backlog has seeded cards; Discovery keeps one; add a fresh empty column.
+    await userEvent.click(screen.getByRole("button", { name: /add column/i }));
+    await userEvent.type(screen.getByLabelText("New column title"), "Scratch");
+    await userEvent.click(screen.getByRole("button", { name: "Add column" }));
+
+    expect(
+      screen.queryByRole("button", { name: /delete column backlog/i })
+    ).not.toBeInTheDocument();
+
+    const deleteScratch = screen.getByRole("button", {
+      name: /delete column scratch/i,
+    });
+    await userEvent.click(deleteScratch);
+    expect(screen.getAllByTestId(/column-/i)).toHaveLength(5);
+  });
+});
